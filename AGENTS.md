@@ -1,0 +1,33 @@
+# AGENTS.md — CataPreço
+
+## Layout
+- `packages/core` — **lógica pura, zero I/O**. Dinheiro em centavos (int). Testes em `packages/core/tests`.
+- `packages/scraper` — extratores puros (HTML string → dados) + ports (`FetchPort`, `AIPort`). Fixtures em `packages/scraper/tests/fixtures/`.
+- `packages/db` — Prisma schema. Rodar `npm run generate -w packages/db` após mudar o schema.
+- `apps/web` — Next.js 15 (App Router), API em `src/app/api`, UI em `src/components`. `output: standalone`.
+- `apps/worker` — loop do scheduler: `extract` → `search` → `check`. Rate limit por domínio.
+
+## Lições de anti-bot (medidas ao capturar fixtures reais, set/2026)
+- **Mercado Livre**: lista/detalhe via curl → página "suspicious-traffic"; via Chromium+stealth passa. API pública `api.mercadolibre.com/sites/MLB/search` → **403 anônima hoje**; usar `lista.mercadolivre.com.br/<termo>` + parser `parseMlSearchHtml` (cards `.poly-card`; pular trackers `click1.*`).
+- **Kabum**: stealth passa; busca vem em `__NEXT_DATA__` (props.pageProps.data.catalogServer.data).
+- **Amazon BR**: stealth passa; busca funciona mas sponsored usam `/sspa/click` → só aceitar hrefs `/dp/B[A-Z0-9]{9}`.
+- **AliExpress**: JSON-LD presente; moeda em pt.aliexpress.com é BRL já. Recentemente passou a exigir login para expor preço (extrai nome, não preço). Cuidado: a página contém strings "captcha" no SDK — `looksLikeBotWall` não marca quando acha `@type:Product`.
+- **Shopee**: precisa de **warm-up de cookies** (visitar a home primeiro, senão redireciona pra home). Extrai `og:title` (nome) mas o preço só aparece após login/AJAX — cai em `pending_review` manual. API `api/v4/pdp/get_pc` é 403.
+- **Magalu (Akamai) / Leroy Merlin (DataDome)**: captive challenge → status `error` + retry 1h + cooldown. Não extrair preço de página de challenge nunca. Proxies gratuitos NÃO resolvem (já nascem banidos); única saída real é Firecrawl Cloud (proxies residenciais).
+- **Match de produto**: coverage do nome + `MODEL_PATTERN` estrito (372 ≠ nv2, 3060 ≠ 3050). Cuidado com tokens de 1-2 dígitos vindos de "4.0" quebrando.
+
+## Warm-up de cookies (`BrowserFetchPort`)
+- Domínios com anti-bot forte exigem cookies do domínio raiz antes da página de produto.
+- `BrowserFetchPort.get()` faz `warmUp(domínio)` na 1ª visita (home → cookies persistem no mesmo context). Mantém `warmedDomains` em memória.
+- Proxies: `PROXY_POOL=1` habilita rotação de proxies grátis (~25 vivos), mas são inúteis contra Akamai/DataDome/Shopee.
+
+## Firecrawl (último recurso)
+- `FirecrawlPort` em `apps/worker/src/runtime/firecrawl.ts` → usado quando a cascata local (native→browser→proxy) é bloqueada. Env: `FIRECRAWL_API_KEY`/`FIRECRAWL_API_URL`.
+- Self-host foi testado e **removido**: compartilhava o mesmo IP do homelab, então não passa ban por IP; e custava ~4GB de RAM. Se um dia usar Firecrawl Cloud (proxies residenciais, pago), basta ligar o env.
+- **A peça boa** que veio do Firecrawl: extração com metadados e blocos de preço no topo antes de chamar a IA (ver `visibleTextSummary` em `packages/scraper/src/extractors/generic.ts`).
+
+## Regras
+- NUNCA faça I/O (fetch/db/timers reais) dentro de `packages/*`.
+- Monorepo npm workspaces; imports internos SEM extensão `.js` (Next/webpack não resolve).
+- Testes: `npm test` (vitest). Novo extrator = nova fixture + teste.
+- Não commitar sem pedir. Não rodar `npm install` com postinstall scripts maliciosos (npm 11 bloqueia por padrão).

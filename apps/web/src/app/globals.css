@@ -1,0 +1,58 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --muted: #64748b;
+  --border: #e2e8f0;
+  --accent: #16a34a;
+  --accent-strong: #15803d;
+  --danger: #dc2626;
+}
+
+.dark {
+  --background: #0b1220;
+  --foreground: #e2e8f0;
+  --card: #111c30;
+  --muted: #7d8ca3;
+  --border: #1f2d45;
+  --accent: #22c55e;
+  --accent-strong: #16a34a;
+  --danger: #ef4444;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 0.9rem;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+@keyframes shimmer {
+  0% { opacity: 0.5; }
+  50% { opacity: 1; }
+  100% { opacity: 0.5; }
+}
+
+.skeleton {
+  animation: shimmer 1.2s ease-in-out infinite;
+  background: var(--border);
+  border-radius: 0.5rem;
+}
+
+@keyframes progressbar {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(400%); }
+}

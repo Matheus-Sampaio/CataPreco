@@ -1,0 +1,27 @@
+{
+  "name": "@catapreco/worker",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "node --import tsx src/index.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@catapreco/core": "*",
+    "@catapreco/db": "*",
+    "@catapreco/scraper": "*",
+    "playwright": "^1.53.0",
+    "playwright-extra": "^4.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "undici": "^6.21.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.20.3",
+    "typescript": "^5.6.3",
+    "vitest": "^3.0.5"
+  }
+}

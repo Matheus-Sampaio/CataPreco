@@ -1,0 +1,61 @@
+# CataPreço — self-host
+# cp .env.example .env   (defina DB_PASSWORD)   &&   docker compose up -d --build
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: catapreco
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+      POSTGRES_DB: catapreco
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U catapreco"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile.migrate
+    restart: "no"
+    environment:
+      DATABASE_URL: postgresql://catapreco:${DB_PASSWORD:-changeme}@db:5432/catapreco
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://catapreco:${DB_PASSWORD:-changeme}@db:5432/catapreco
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    restart: unless-stopped
+    shm_size: 512m
+    environment:
+      DATABASE_URL: postgresql://catapreco:${DB_PASSWORD:-changeme}@db:5432/catapreco
+      PROXY_URL: ${PROXY_URL:-}
+      PROXY_INTERNATIONAL_URL: ${PROXY_INTERNATIONAL_URL:-}
+      PROXY_POOL: ${PROXY_POOL:-0}
+      FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
+      FIRECRAWL_API_URL: ${FIRECRAWL_API_URL:-}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:
