@@ -34,6 +34,42 @@ describe("specMatch", () => {
   it("rejeita 256gb quando pedindo 1tb", () => {
     expect(specMatch("Cartão SD 256GB", ["1tb"]).ok).toBe(false);
   });
+
+  it("une unidade separada por espaço ('27 Pol' = '27pol')", () => {
+    const r = specMatch("Monitor Gamer 27 Pol 180 Hz QHD", ["27pol", "180hz", "qhd"]);
+    expect(r.ok).toBe(true);
+    expect(r.score).toBe(1);
+  });
+
+  it("rejeita monitor de polegadas diferentes", () => {
+    const r = specMatch("Monitor Gamer 24pol 180Hz IPS", ["27pol", "180hz"]);
+    expect(r.ok).toBe(false);
+    expect(r.reasons[0]).toContain("screen");
+  });
+
+  it("rejeita monitor com taxa de atualização diferente", () => {
+    expect(specMatch("Monitor 27pol QHD 165Hz", ["27pol", "180hz"]).ok).toBe(false);
+  });
+
+  it("rejeita fonte com potência diferente", () => {
+    expect(specMatch("Fonte 650W 80 Plus Bronze", ["750w"]).ok).toBe(false);
+  });
+
+  it("não confunde 'HDMI' do anúncio com resolução 'hd'", () => {
+    const r = specMatch("Monitor 27pol QHD 180Hz HDMI DP", ["27pol", "180hz"]);
+    expect(r.ok).toBe(true);
+  });
+
+  it("spec 'fhd' ausente do título não é conflito de eixo (só score menor)", () => {
+    const r = specMatch("Monitor 27pol 180Hz HDMI", ["27pol", "180hz", "fhd"]);
+    expect(r.reasons[0]).not.toContain("axis conflict");
+    expect(r.ok).toBe(false); // 2/3 specs presentes < 0.75
+  });
+
+  it("rejeita resolução diferente (4k ≠ fullhd)", () => {
+    expect(specMatch("Monitor 32pol 4K 60Hz", ["4k", "32pol"]).ok).toBe(true);
+    expect(specMatch("Monitor 32pol Full HD 60Hz", ["4k", "32pol"]).ok).toBe(false);
+  });
 });
 
 describe("looksCommodityCategory", () => {

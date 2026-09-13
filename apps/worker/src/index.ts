@@ -59,13 +59,13 @@ const proxyBrowser: FetchPort | null = PROXY_INTERNATIONAL
 
 const cascade = new CascadeFetchPort(native, browserOrNull, LOG);
 
-/** Fetch via next pool proxy (browser). Used as escalation when pool is on. */
+/** Fetch via next pool proxy (browser). Último recurso local — NUNCA caminho padrão. */
 const poolFetch: FetchPort = {
   async get(url) {
     const proxy = livePool!.next();
     if (!proxy) {
-      LOG("proxy pool empty — fallback to direct browser");
-      return browserOrNull.get(url);
+      LOG("proxy pool empty — skipping pool escalation");
+      throw new Error("proxy pool empty");
     }
     LOG(`fetch via pool proxy ${proxy}`);
     const port = new BrowserFetchPort({ proxyServer: `http://${proxy}` });
@@ -82,16 +82,12 @@ const poolFetch: FetchPort = {
   },
 };
 
-// when the pool is enabled it IS the browser path (single IP roda)
-const effectiveBrowserOrPool = livePool ? poolFetch : browserOrNull;
-const cascadePooled = new CascadeFetchPort(native, effectiveBrowserOrPool, LOG);
-
 // Firecrawl é o último recurso (anti-bot de verdade / proxies) — env-gateado
 const firecrawlPort = FIRECRAWL_API_KEY
   ? new FirecrawlPort({ apiKey: FIRECRAWL_API_KEY, baseUrl: FIRECRAWL_API_URL })
   : null;
 
-/** Fetch respecting proxy policy + firecrawl fallback per URL. */
+/** Fetch cascata: nativo → browser direto → (pool, se ligado) → firecrawl. */
 async function fetchFor(url: string) {
   const domain = domainOf(url);
   if (proxyBrowser && isCrossBorderDomain(domain)) {
@@ -101,20 +97,33 @@ async function fetchFor(url: string) {
 
   let primary: FetchResponse | null = null;
   try {
-    primary = await cascadePooled.get(url);
+    primary = await cascade.get(url);
   } catch (err) {
     LOG(`cascade fetch error (${(err as Error).message})`);
   }
 
-  const blocked = !primary || primary.status >= 400 || looksLikeBotWall(primary.html);
-  if (blocked) {
-    if (firecrawlPort) {
-      LOG(`cascade bloqueado para ${domain} — tentando firecrawl`);
-      return firecrawlPort.get(url);
+  const blockedDirect = !primary || primary.status >= 400 || looksLikeBotWall(primary.html);
+
+  // Pool de proxies grátis: só tenta quando o acesso DIRETO foi bloqueado
+  // (proxies grátis pioram o acesso a sites que passam direto — ML/KaBuM/Amazon)
+  if (blockedDirect && livePool) {
+    try {
+      LOG(`cascade bloqueado para ${domain} — tentando proxy pool`);
+      const viaPool = await poolFetch.get(url);
+      if (viaPool.status < 400 && !looksLikeBotWall(viaPool.html)) return viaPool;
+      LOG(`pool também bloqueado para ${domain} (status ${viaPool.status})`);
+    } catch (err) {
+      LOG(`pool fetch error: ${(err as Error).message}`);
     }
-    if (!primary) return cascadePooled.get(url); // re-lança o erro original
   }
-  return primary!;
+
+  if (blockedDirect && firecrawlPort) {
+    LOG(`escalando ${domain} para firecrawl`);
+    return firecrawlPort.get(url);
+  }
+
+  if (!primary) return cascade.get(url); // re-lança o erro original
+  return primary;
 }
 
 const fetchPort: FetchPort = { get: fetchFor };
@@ -247,6 +256,30 @@ async function tick(): Promise<void> {
     }
   }
 
+  // 2.3. pending_review por FALHA DE FETCH (sem candidatos pra revisão):
+  // não adianta esperar o modal — re-tenta a extração a cada 6h.
+  // (pendingCandidates != null significa revisão genuína esperando o usuário)
+  const pendingRetry = await prisma.product.findMany({
+    where: {
+      status: "pending_review",
+      pendingCandidates: { equals: Prisma.DbNull },
+      updatedAt: { lt: new Date(Date.now() - 6 * 60 * 60_000) },
+    },
+    take: 1,
+    orderBy: { updatedAt: "asc" },
+  });
+  for (const product of pendingRetry) {
+    await acquireDomain(product.url);
+    try {
+      LOG(`re-tentando extração de pending_review ${product.id}`);
+      await jobExtract({ db: prisma, fetch: fetchPort, ai: null, aiForUser, searchFetch, log: LOG }, product);
+      markRequest(product.url, false);
+    } catch (err) {
+      markRequest(product.url, true);
+      LOG(`pending retry extract error: ${(err as Error).message}`);
+    }
+  }
+
   // 2.4. Backfill de classificação: produtos antigos (ativos/revisão) nunca classificados
   const unclassified = await prisma.product.findMany({
     where: {
@@ -295,11 +328,8 @@ async function tick(): Promise<void> {
     orderBy: { nextCheckAt: "asc" },
   });
   for (const product of due) {
-    for (const listing of product.listings) {
-      await acquireDomain(listing.url);
-    }
     try {
-      await jobCheck({ db: prisma, fetch: fetchPort, ai: null, aiForUser, searchFetch, log: LOG }, product);
+      await jobCheck({ db: prisma, fetch: fetchPort, ai: null, aiForUser, searchFetch, log: LOG, acquire: acquireDomain }, product);
       for (const listing of product.listings) markRequest(listing.url, false);
     } catch (err) {
       for (const listing of product.listings) markRequest(listing.url, true);

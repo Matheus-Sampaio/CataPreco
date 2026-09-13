@@ -17,29 +17,53 @@ const AXES: { name: string; values: string[] }[] = [
   { name: "memgen", values: ["ddr3", "ddr4", "ddr5"] },
   { name: "pciegen", values: ["gen3", "gen4", "gen5", "pcie 3", "pcie 4", "pcie 5"] },
   { name: "count", values: ["8gb", "16gb", "24gb", "32gb", "64gb"] },
+  // monitores: tamanho e taxa de atualização definem o modelo
+  { name: "screen", values: ["19pol", "22pol", "24pol", "25pol", "27pol", "29pol", "32pol", "34pol"] },
+  { name: "refresh", values: ["60hz", "75hz", "100hz", "120hz", "144hz", "165hz", "180hz", "240hz"] },
+  // fontes de alimentação (potência)
+  { name: "watts", values: ["400w", "450w", "500w", "550w", "600w", "650w", "700w", "750w", "850w", "1000w"] },
+  // resolução (monitores/TVs/projetores) — match de palavra inteira ("hd" ⊄ "hdmi");
+  // "fhd" propositalmente fora: é alias de "fullhd" e conflitaria consigo mesmo
+  { name: "resolution", values: ["hd", "fullhd", "qhd", "4k", "8k"] },
 ];
+
+const norm = (s: string) => normalizeName(s);
+
+/**
+ * Normalização local: cola unidades separadas por espaço ("27 pol" → "27pol",
+ * "180 hz" → "180hz", "1 tb" → "1tb") e alias "full hd" → "fullhd".
+ * Contido aqui (não altera o normalizeName global do matching).
+ */
+const fuseUnits = (s: string): string =>
+  s
+    .replace(/\bfull\s+hd\b/g, "fullhd")
+    .replace(/\b(\d+)\s+(pol|hz|w|gb|tb|mb|ml|kg|g)\b/g, "$1$2");
+
+/** whole-word match sobre texto normalizado (tokens alfanuméricos + espaços) */
+function hasValue(normText: string, value: string): boolean {
+  const esc = value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(?:^|\\s)${esc}(?:\\s|$)`).test(normText);
+}
+
+/** True when the listing has a value of one of the given axes that differs. */
+function axisConflict(listingNorm: string, specs: string[]): string | null {
+  for (const axis of AXES) {
+    const specHits = axis.values.filter((v) => specs.some((s) => s === norm(v)));
+    if (specHits.length === 0) continue; // spec doesn't set this axis — any value ok
+    // listing has an axis value?
+    for (const v of axis.values) {
+      const wanted = specHits.some((s) => s === norm(v));
+      if (wanted) continue;
+      if (hasValue(listingNorm, norm(v))) return `${axis.name}: spec ${specHits[0]} ≠ listing ${v}`;
+    }
+  }
+  return null;
+}
 
 export interface SpecMatchResult {
   score: number; // 0..1
   ok: boolean;
   reasons: string[];
-}
-
-const norm = (s: string) => normalizeName(s);
-
-/** True when the listing has a value of one of the given axes that differs. */
-function axisConflict(listingNorm: string, specs: string[]): string | null {
-  for (const axis of AXES) {
-    const specHits = axis.values.filter((v) => specs.some((s) => norm(s) === norm(v)));
-    if (specHits.length === 0) continue; // spec doesn't set this axis — any value ok
-    // listing has an axis value?
-    for (const v of axis.values) {
-      const wanted = specHits.some((s) => norm(s) === norm(v));
-      if (wanted) continue;
-      if (listingNorm.includes(norm(v))) return `${axis.name}: spec ${specHits[0]} ≠ listing ${v}`;
-    }
-  }
-  return null;
 }
 
 /**
@@ -49,8 +73,8 @@ function axisConflict(listingNorm: string, specs: string[]): string | null {
  */
 export function specMatch(listingTitle: string, specs: SpecTokens, threshold = 0.75): SpecMatchResult {
   const reasons: string[] = [];
-  const listingNorm = norm(listingTitle);
-  const normalizedSpecs = specs.map(norm).filter((s) => s.length >= 2);
+  const listingNorm = fuseUnits(norm(listingTitle));
+  const normalizedSpecs = specs.map((s) => fuseUnits(norm(s))).filter((s) => s.length >= 2);
 
   const conflict = axisConflict(listingNorm, normalizedSpecs);
   if (conflict) {

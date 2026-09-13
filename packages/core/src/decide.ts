@@ -116,11 +116,15 @@ export function decide(candidates: PriceCandidate[], opts: DecideOptions = {}): 
 
   // 5. Decide.
   if (ranked.length === 1) {
-    const single = best.confidence >= autoAccept / 2 && !best.isInstallment;
+    // generic-only CSS heuristics are noisy — demand more confidence than
+    // structured sources (jsonld/adapter) before auto-accepting a lone hit
+    const genericOnly = best.members.every((m) => m.source === "generic");
+    const minConf = genericOnly ? Math.max(autoAccept / 2, 0.6) : autoAccept / 2;
+    const single = best.confidence >= minConf && !best.isInstallment;
     reasoning.push(
       single
         ? `single candidate auto-accepted (conf ${best.confidence.toFixed(2)})`
-        : `single low-confidence candidate; review recommended`,
+        : `single low-confidence candidate${genericOnly ? " (generic-only)" : ""}; review recommended`,
     );
     return {
       selected: toCandidate(best),

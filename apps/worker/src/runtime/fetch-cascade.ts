@@ -20,7 +20,9 @@ export class CascadeFetchPort implements FetchPort {
 
     try {
       const res = await this.native.get(url);
-      if (res.status === 403 || res.status === 429 || looksLikeBotWall(res.html)) {
+      // 403/429 = bloqueio; 5xx = o site recusou a identidade "curl" (transitório
+      // ou WAF) — o browser tem bem mais chance nas duas situações
+      if (res.status === 403 || res.status === 429 || res.status >= 500 || looksLikeBotWall(res.html)) {
         this.log(`native fetch blocked (status ${res.status}) — escalating to browser`);
         return this.browser.get(url);
       }

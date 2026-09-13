@@ -51,6 +51,15 @@ describe("CascadeFetchPort", () => {
     await port.get("https://loja.com.br/p/3");
     expect(browser.calls).toHaveLength(1);
   });
+
+  it("escalates on transient 5xx (curl-shaped identity gets refused)", async () => {
+    const native = fakePort(503, "Service Unavailable", false);
+    const browser = fakePort(200, "real page", true);
+    const port = new CascadeFetchPort(native.port, browser.port);
+    const res = await port.get("https://loja.com.br/p/4");
+    expect(browser.calls).toHaveLength(1);
+    expect(res.status).toBe(200);
+  });
 });
 
 describe("dispatchEvent", () => {

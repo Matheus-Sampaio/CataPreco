@@ -19,7 +19,14 @@
 ## Warm-up de cookies (`BrowserFetchPort`)
 - Domínios com anti-bot forte exigem cookies do domínio raiz antes da página de produto.
 - `BrowserFetchPort.get()` faz `warmUp(domínio)` na 1ª visita (home → cookies persistem no mesmo context). Mantém `warmedDomains` em memória.
-- Proxies: `PROXY_POOL=1` habilita rotação de proxies grátis (~25 vivos), mas são inúteis contra Akamai/DataDome/Shopee.
+- O domínio de warm-up vem de `domainOf()` do core (lida com TLD composto `.com.br`) — nunca derivar com `split(".").slice(-2)`.
+- Proxies: `PROXY_POOL=1` habilita pool de proxies grátis (~25 vivos) como **último recurso local**: só roda quando nativo+browser direto falham (4xx/6xx/botwall). Nunca é o caminho padrão — proxies grátis pioram o acesso a sites que passam direto (ML/KaBuM/Amazon).
+
+## Cascata de fetch (`fetchFor` no worker)
+- Ordem: nativo → browser direto → proxy pool (se ligado e bloqueado) → Firecrawl (se configurado).
+- `CascadeFetchPort` escala pro browser em 403/429/**5xx**/botwall — identidade "curl" leva 503 transitório em vários sites.
+- `pending_review` SEM `pendingCandidates` = falha de fetch (não ambiguidade): o worker re-tenta a extração a cada 6h. Com candidatos = esperando o usuário no modal.
+- `decide()`: candidato único vindo só de CSS genérico exige conf ≥ 0.6 (fontes estruturadas: conf/2).
 
 ## Firecrawl (último recurso)
 - `FirecrawlPort` em `apps/worker/src/runtime/firecrawl.ts` → usado quando a cascata local (native→browser→proxy) é bloqueada. Env: `FIRECRAWL_API_KEY`/`FIRECRAWL_API_URL`.

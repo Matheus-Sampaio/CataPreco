@@ -68,4 +68,20 @@ describe("decide", () => {
     expect(d.ranked).toHaveLength(1);
     expect(d.needsReview).toBe(false);
   });
+
+  it("single generic-only candidate below 0.6 goes to review (css heuristics are noisy)", () => {
+    const d = decide([c(500000, "generic", 0.55, { label: "css price" })]);
+    expect(d.needsReview).toBe(true);
+    expect(d.selected?.valueCents).toBe(500000);
+  });
+
+  it("single generic candidate with high confidence still auto-accepts", () => {
+    const d = decide([c(500000, "generic", 0.7, { label: "pix" })]);
+    expect(d.needsReview).toBe(false);
+  });
+
+  it("single jsonld candidate auto-accepts at lower confidence than generic", () => {
+    const d = decide([c(500000, "jsonld", 0.55)]);
+    expect(d.needsReview).toBe(false);
+  });
 });

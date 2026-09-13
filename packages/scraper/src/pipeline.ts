@@ -122,6 +122,9 @@ export async function scrapeProduct(
       merged = mergeResults(merged, result);
       merged.candidates = [...merged.candidates, candidate];
       logs.push(`ai extract: price=${candidate.valueCents} conf=${candidate.confidence}`);
+    } else if (result) {
+      // JSON válido mas sem preço — página vazia/bloqueada ou produto sem preço exposto
+      logs.push("ai extract: resposta válida mas sem preço (página sem conteúdo?)");
     } else {
       logs.push("ai extract: unparseable response");
     }

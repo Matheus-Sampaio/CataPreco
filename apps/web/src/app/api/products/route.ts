@@ -42,6 +42,15 @@ export async function POST(req: Request) {
   const intervalMin = VALID_INTERVALS.includes(body.intervalMin ?? 0) ? body.intervalMin! : 360;
   const crossBorder = isCrossBorderDomain(host);
 
+  // mesma URL normalizada já rastreada por este usuário → não duplicar
+  const existing = await prisma.product.findFirst({ where: { userId: user.id, url } });
+  if (existing) {
+    return NextResponse.json(
+      { error: "este produto já está sendo rastreado", product: existing },
+      { status: 409 },
+    );
+  }
+
   const product = await prisma.product.create({
     data: {
       userId: user.id,

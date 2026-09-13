@@ -46,6 +46,8 @@ export interface JobDeps {
   /** called to resolve per-user AI config lazily */
   aiForUser: (userId: string) => Promise<AIPort | null>;
   searchFetch: FetchPort;
+  /** rate-limit hook — chamado antes de CADA fetch de listing dentro de um job */
+  acquire?: (url: string) => Promise<void>;
 }
 
 async function persistCheck(
@@ -462,6 +464,8 @@ export async function jobCheck(deps: JobDeps, product: Product & { listings: Lis
     const prevStock = (listing.stock as StockStatus) ?? "unknown";
     let result: PipelineResult;
     try {
+      // respeita o gap por domínio entre listings do MESMO produto também
+      await deps.acquire?.(listing.url);
       result = await scrapeProduct(listing.url, deps.fetch, { ai: null });
     } catch (err) {
       log(`check listing ${listing.id} error: ${(err as Error).message}`);

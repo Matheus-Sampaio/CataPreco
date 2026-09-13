@@ -1,3 +1,4 @@
+import { domainOf } from "@catapreco/core";
 import type { FetchPort, FetchResponse } from "@catapreco/scraper";
 import type { Browser, BrowserContext } from "playwright";
 
@@ -67,9 +68,8 @@ export class BrowserFetchPort implements FetchPort {
   async get(url: string): Promise<FetchResponse> {
     const ctx = await this.ensureContext();
     // domínios com anti-bot forte precisam de cookies antes da página
-    const u = new URL(url);
-    const host = u.hostname;
-    const domKey = host.replace(/^w{3}n?\.?/i, "").split(".").slice(-2).join(".");
+    // (domainOf lida com TLD composto: kabum.com.br → kabum.com.br, não "com.br")
+    const domKey = domainOf(url);
     if (!this.warmedDomains.has(domKey)) {
       await this.warmUp(domKey, () => {});
       this.warmedDomains.add(domKey);
