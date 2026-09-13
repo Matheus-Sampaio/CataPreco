@@ -57,5 +57,26 @@ services:
       migrate:
         condition: service_completed_successfully
 
+  tailscale:
+    image: tailscale/tailscale:stable
+    container_name: catapreco-tailscale
+    hostname: catapreco
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    environment:
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_HOSTNAME: ${TS_HOSTNAME:-catapreco}
+      TS_AUTHKEY: ${TS_AUTHKEY:-}
+      TS_USERSPACE: "false"
+      TS_AUTH_ONCE: "true"
+      TS_ACCEPT_DNS: "true"
+    volumes:
+      - tailscale-state:/var/lib/tailscale
+      - /dev/net/tun:/dev/net/tun
+    restart: unless-stopped
+
 volumes:
   pgdata:
+  tailscale-state:
