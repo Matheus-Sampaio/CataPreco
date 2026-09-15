@@ -70,11 +70,24 @@ export interface SpecMatchResult {
  * Matches a listing title against the commodity spec.
  * - every spec token must appear in the normalized listing title
  * - axis conflicts → hard reject
+ * - negativeSpecs: qualquer uma presente no título → hard reject
+ *   (ex.: RAM desktop excluindo "notebook"/"sodimm")
  */
-export function specMatch(listingTitle: string, specs: SpecTokens, threshold = 0.75): SpecMatchResult {
+export function specMatch(
+  listingTitle: string,
+  specs: SpecTokens,
+  threshold = 0.75,
+  negativeSpecs: SpecTokens = [],
+): SpecMatchResult {
   const reasons: string[] = [];
   const listingNorm = fuseUnits(norm(listingTitle));
   const normalizedSpecs = specs.map((s) => fuseUnits(norm(s))).filter((s) => s.length >= 2);
+  const negatives = negativeSpecs.map((s) => fuseUnits(norm(s))).filter((s) => s.length >= 2);
+
+  const blocked = negatives.find((n) => listingNorm.includes(n));
+  if (blocked) {
+    return { score: 0, ok: false, reasons: [`spec excluída presente: ${blocked}`] };
+  }
 
   const conflict = axisConflict(listingNorm, normalizedSpecs);
   if (conflict) {

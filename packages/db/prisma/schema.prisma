@@ -75,6 +75,8 @@ model Product {
   flexBrands    Boolean @default(false)
   /// e.g. ["1tb","m2","nvme","gen4","3500 mb/s"] — IA-extracted, user-editable
   specTokens    Json?
+  /// specs excluídas: listing que contém qualquer uma é rejeitada ("notebook" p/ RAM desktop)
+  negativeSpecs Json?
   /// e.g. "ssd", "console", "gpu"
   category      String?
   /// last time the flex-brand search ran

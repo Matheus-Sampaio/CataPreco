@@ -28,6 +28,12 @@
 - `pending_review` SEM `pendingCandidates` = falha de fetch (não ambiguidade): o worker re-tenta a extração a cada 6h. Com candidatos = esperando o usuário no modal.
 - `decide()`: candidato único vindo só de CSS genérico exige conf ≥ 0.6 (fontes estruturadas: conf/2).
 
+## Specs flex (brand-flexible)
+- `specMatch(title, specs, threshold, negativeSpecs)`: negativeSpecs rejeitam o anúncio se presentes no título ("notebook" em busca de RAM desktop). UI: no campo "+ spec", digitar `-termo` cria spec negativa.
+- Flex tem guarda de categoria: o 1º token do título do produto precisa existir no anúncio (evita "sanduicheira 750w" casar com "liquidificador 750w").
+- `refreshProductAggregates` ignora listings `isAlternative` — o preço do produto é só o dele; alternativas viram linha própria no gráfico de histórico (altSeries).
+- Editar specs/flexBrands via PATCH zera `lastFlexSearchAt` → flex re-roda no próximo tick.
+
 ## Firecrawl (último recurso)
 - `FirecrawlPort` em `apps/worker/src/runtime/firecrawl.ts` → usado quando a cascata local (native→browser→proxy) é bloqueada. Env: `FIRECRAWL_API_KEY`/`FIRECRAWL_API_URL`.
 - Self-host foi testado e **removido**: compartilhava o mesmo IP do homelab, então não passa ban por IP; e custava ~4GB de RAM. Se um dia usar Firecrawl Cloud (proxies residenciais, pago), basta ligar o env.

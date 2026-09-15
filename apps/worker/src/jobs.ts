@@ -10,6 +10,7 @@ import {
   acceptPriceTransition,
   evaluateTransition,
   nextCheckAt,
+  normalizeName,
   normalizeProductUrl,
   productNameFromUrl,
   toBrlCents,
@@ -71,8 +72,10 @@ async function persistCheck(
 
 /** Recompute denormalized aggregates on the product from its listings. */
 async function refreshProductAggregates(db: PrismaClient, productId: string) {
+  // isAlternative (outra marca) NÃO entra no preço do produto — poluiria o
+  // min e quebraria a referência do alerta "alternativa mais barata"
   const listings = await db.listing.findMany({
-    where: { productId, OR: [{ priceBrlCents: { not: null } }, { priceCents: { not: null } }] },
+    where: { productId, isAlternative: false, OR: [{ priceBrlCents: { not: null } }, { priceCents: { not: null } }] },
     select: { priceCents: true, priceBrlCents: true },
   });
   const prices = listings.map((l) => l.priceBrlCents ?? (l.priceCents as number));
@@ -90,7 +93,7 @@ async function refreshProductAggregates(db: PrismaClient, productId: string) {
     ? Math.min(product.lowestEverCents, minPrice)
     : minPrice;
   const lowestPoint = await db.pricePoint.findFirst({
-    where: { listing: { productId } },
+    where: { listing: { productId, isAlternative: false } },
     orderBy: { priceCents: "asc" },
     select: { priceCents: true },
   });
@@ -267,11 +270,12 @@ export async function jobSearchFlex(deps: JobDeps, product: Product): Promise<vo
   const { db, log } = deps;
   if (!product.flexBrands) return;
   const specs = (product.specTokens as string[] | null) ?? [];
+  const negatives = (product.negativeSpecs as string[] | null) ?? [];
   if (specs.length === 0) {
     log(`flex ${product.id}: sem specs — pulando`);
     return;
   }
-  log(`flex ${product.id}: buscando spec [${specs.join(",")}]`);
+  log(`flex ${product.id}: buscando spec [${specs.join(",")}]${negatives.length ? ` excluindo [${negatives.join(",")}]` : ""}`);
 
   // query por spec apenas (sem marca)
   const catKeywords = [product.category ?? ""].filter(Boolean);
@@ -290,9 +294,17 @@ export async function jobSearchFlex(deps: JobDeps, product: Product): Promise<vo
       if (res.status !== 200) continue;
       const hits = filterMatchingHits(query, source.parse(res.html), 0.5);
       for (const hit of hits.slice(0, 3)) {
-        const specResult = specMatch(hit.title, specs);
+        const specResult = specMatch(hit.title, specs, 0.75, negatives);
         if (!specResult.ok) {
           log(`flex: rejeitado "${hit.title.slice(0, 50)}" — ${specResult.reasons[0]}`);
+          continue;
+        }
+        // guarda de categoria: o primeiro token do título do produto
+        // ("liquidificador", "placa") precisa existir no anúncio — evita
+        // matches fracos só com specs genéricas ("sanduicheira 750w")
+        const firstToken = normalizeName(product.title ?? "").split(" ")[0];
+        if (firstToken && firstToken.length >= 3 && !normalizeName(hit.title).includes(firstToken)) {
+          log(`flex: rejeitado "${hit.title.slice(0, 50)}" — sem a categoria "${firstToken}"`);
           continue;
         }
         const normUrl = normalizeProductUrl(hit.url);

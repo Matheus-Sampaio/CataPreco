@@ -9,7 +9,7 @@
 [![Prisma](https://img.shields.io/badge/Prisma-16-2D3748?logo=prisma&logoColor=white)](https://www.prisma.io/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-159%20passing-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-162%20passing-brightgreen)]()
 
 </div>
 
@@ -24,7 +24,7 @@ Cole o link de um produto, e o **CataPreço** extrai nome, preço e disponibilid
 - 📉 **Histórico de preços** com gráfico do menor preço e estatísticas (mín/média/máx)
 - 🔔 **Alertas multi-canal**: Telegram, Discord, Pushover, ntfy.sh e Gotify
 - 🎯 **Preço-alvo**, queda percentual e **alertas de volta ao estoque**
-- 🧠 **Alternativas por spec** (brand-flexible): "aceito outra marca se a especificação bater" — SSD 1TB NVMe Gen4 de qualquer marca
+- 🧠 **Alternativas por spec** (brand-flexible): "aceito outra marca se a especificação bater" — SSD 1TB NVMe Gen4 de qualquer marca, com **specs negativas** (`-notebook` exclui o termo) e linha própria no gráfico de histórico
 - 🇧🇷 **Remessa Conforme** — imposto de importação + ICMS calculados para lojas internacionais
 - 👥 **Multi-usuário** com painel admin e controle de cadastro
 - 📱 **PWA** + modo claro/escuro + design responsivo

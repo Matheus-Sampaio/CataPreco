@@ -70,6 +70,27 @@ describe("specMatch", () => {
     expect(specMatch("Monitor 32pol 4K 60Hz", ["4k", "32pol"]).ok).toBe(true);
     expect(specMatch("Monitor 32pol Full HD 60Hz", ["4k", "32pol"]).ok).toBe(false);
   });
+
+  it("spec negativa rejeita listing que a contém (RAM desktop ≠ notebook)", () => {
+    const r = specMatch(
+      "Memória RAM SODIMM DDR4 16GB 3200MHz para Notebook",
+      ["16gb", "ddr4"],
+      0.75,
+      ["notebook", "sodimm"],
+    );
+    expect(r.ok).toBe(false);
+    expect(r.reasons[0]).toContain("notebook");
+  });
+
+  it("spec negativa ausente não interfere no match", () => {
+    const r = specMatch("Memória RAM Desktop DDR4 16GB 3200MHz", ["16gb", "ddr4"], 0.75, ["notebook"]);
+    expect(r.ok).toBe(true);
+  });
+
+  it("spec negativa é normalizada (acento/caixa/unidade com espaço)", () => {
+    const r = specMatch("Memória 16 GB DDR4 p/ notebook", ["16gb", "ddr4"], 0.75, ["Notebook"]);
+    expect(r.ok).toBe(false);
+  });
 });
 
 describe("looksCommodityCategory", () => {

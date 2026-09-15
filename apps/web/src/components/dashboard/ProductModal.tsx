@@ -13,7 +13,9 @@ import { PriceReviewModal } from "./PriceReviewModal";
 
 interface HistoryData {
   minSeries: { ts: string; priceCents: number }[];
+  altSeries?: { ts: string; priceCents: number }[];
   stats: { min: number; max: number; avg: number; readings: number } | null;
+  altStats?: { min: number; max: number; avg: number; readings: number } | null;
 }
 
 export function ProductModal({ product, onClose }: { product: UiProduct; onClose: () => void }) {
@@ -126,30 +128,71 @@ export function ProductModal({ product, onClose }: { product: UiProduct; onClose
                   </div>
                 </div>
               )}
-              <div className="h-64 w-full">
-                <ResponsiveContainer>
-                  <LineChart data={history.minSeries}>
-                    <XAxis
-                      dataKey="ts"
-                      tickFormatter={(t: string) => new Date(t).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
-                      fontSize={12}
-                      stroke="var(--muted)"
-                    />
-                    <YAxis
-                      tickFormatter={(v: number) => formatBRL(v)}
-                      fontSize={11}
-                      width={90}
-                      stroke="var(--muted)"
-                    />
-                    <Tooltip
-                      formatter={(v: number) => [formatBRL(v), "menor preço"]}
-                      labelFormatter={(t: string) => new Date(t).toLocaleString("pt-BR")}
-                      contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8 }}
-                    />
-                    <Line type="stepAfter" dataKey="priceCents" stroke="var(--accent)" strokeWidth={2} dot={false} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
+              {(() => {
+                // mescla as duas séries no mesmo eixo temporal (valores ausentes = buracos)
+                const alt = history.altSeries ?? [];
+                const byTs = new Map<string, { ts: string; priceCents?: number; altCents?: number }>();
+                for (const p of history.minSeries) byTs.set(p.ts, { ts: p.ts, priceCents: p.priceCents });
+                for (const p of alt) {
+                  const row = byTs.get(p.ts) ?? { ts: p.ts };
+                  row.altCents = p.priceCents;
+                  byTs.set(p.ts, row);
+                }
+                const data = [...byTs.values()].sort((a, b) => a.ts.localeCompare(b.ts));
+                const hasAlt = alt.length > 0;
+                return (
+                  <>
+                    <div className="h-64 w-full">
+                      <ResponsiveContainer>
+                        <LineChart data={data}>
+                          <XAxis
+                            dataKey="ts"
+                            tickFormatter={(t: string) => new Date(t).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
+                            fontSize={12}
+                            stroke="var(--muted)"
+                          />
+                          <YAxis
+                            tickFormatter={(v: number) => formatBRL(v)}
+                            fontSize={11}
+                            width={90}
+                            stroke="var(--muted)"
+                            domain={["dataMin", "auto"]}
+                          />
+                          <Tooltip
+                            formatter={(v: number, name: string) => [
+                              formatBRL(v),
+                              name === "altCents" ? "menor alternativa (outras marcas)" : "menor preço",
+                            ]}
+                            labelFormatter={(t: string) => new Date(t).toLocaleString("pt-BR")}
+                            contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8 }}
+                          />
+                          <Line type="stepAfter" dataKey="priceCents" name="menor preço" stroke="var(--accent)" strokeWidth={2} dot={false} connectNulls />
+                          {hasAlt && (
+                            <Line
+                              type="stepAfter"
+                              dataKey="altCents"
+                              name="menor alternativa (outras marcas)"
+                              stroke="#d97706"
+                              strokeWidth={2}
+                              strokeDasharray="6 4"
+                              dot={false}
+                              connectNulls
+                            />
+                          )}
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                    {hasAlt && history.altStats && (
+                      <p className="mt-2 flex items-center gap-2 text-xs muted">
+                        <span className="inline-block h-0.5 w-6 bg-[#d97706]" />
+                        Alternativas (mesma spec, outra marca): menor{" "}
+                        <strong className="text-[var(--fg)]">{formatBRL(history.altStats.min)}</strong>
+                        {" "}em {history.altStats.readings} leitura(s)
+                      </p>
+                    )}
+                  </>
+                );
+              })()}
             </>
           )}
         </div>
@@ -170,14 +213,15 @@ export function ProductModal({ product, onClose }: { product: UiProduct; onClose
     </>
   );
 }
-/** Brand-flex section: IA extrai specs; usuário edita e pode ativar busca flex. */
+/** Brand-flex section: IA extrai specs; usuário edita (+ inclui, - exclui) e ativa busca flex. */
 function FlexSection({ product }: { product: UiProduct }) {
   const [enabled, setEnabled] = useState(product.flexBrands);
   const [specs, setSpecs] = useState<string[]>(product.specTokens ?? []);
+  const [negatives, setNegatives] = useState<string[]>(product.negativeSpecs ?? []);
   const [newSpec, setNewSpec] = useState("");
   const [saving, setSaving] = useState(false);
 
-  async function save(next: { flexBrands?: boolean; specTokens?: string[] }) {
+  async function save(next: { flexBrands?: boolean; specTokens?: string[]; negativeSpecs?: string[] }) {
     setSaving(true);
     try {
       const res = await fetch(`/api/products/${product.id}`, {
@@ -193,6 +237,23 @@ function FlexSection({ product }: { product: UiProduct }) {
       toast.error((err as Error).message);
     } finally {
       setSaving(false);
+    }
+  }
+
+  function addSpec(raw: string) {
+    const t = raw.trim().toLowerCase();
+    if (t.startsWith("-") && t.length > 2) {
+      // "-notebook" → spec negativa (exclui anúncios com o termo)
+      const n = t.slice(1).trim();
+      if (n.length >= 2 && !negatives.includes(n)) {
+        const next = [...negatives, n];
+        setNegatives(next);
+        void save({ negativeSpecs: next });
+      }
+    } else if (t.length >= 2 && !specs.includes(t)) {
+      const next = [...specs, t];
+      setSpecs(next);
+      void save({ specTokens: next });
     }
   }
 
@@ -216,7 +277,7 @@ function FlexSection({ product }: { product: UiProduct }) {
       {enabled && (
         <>
           <div className="flex flex-wrap items-center gap-1.5">
-            {specs.length === 0 && (
+            {specs.length === 0 && negatives.length === 0 && (
               <span className="text-xs muted">
                 Nenhuma spec extraída ainda — a IA preenche após a próxima checagem
               </span>
@@ -238,29 +299,47 @@ function FlexSection({ product }: { product: UiProduct }) {
                 </button>
               </span>
             ))}
+            {negatives.map((s) => (
+              <span
+                key={s}
+                title="Anúncios com este termo são rejeitados"
+                className="flex items-center gap-1 rounded-full bg-red-500/15 text-red-600 dark:text-red-400 px-2 py-0.5 text-xs"
+              >
+                −{s}
+                <button
+                  onClick={() => {
+                    const next = negatives.filter((x) => x !== s);
+                    setNegatives(next);
+                    void save({ negativeSpecs: next });
+                  }}
+                  disabled={saving}
+                  className="hover:text-[var(--danger)]"
+                  aria-label={`Remover exclusão ${s}`}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
             <form
               className="flex gap-1"
               onSubmit={(e) => {
                 e.preventDefault();
-                const t = newSpec.trim().toLowerCase();
-                if (t.length >= 2 && !specs.includes(t)) {
-                  const next = [...specs, t];
-                  setSpecs(next);
-                  setNewSpec("");
-                  void save({ specTokens: next });
-                }
+                addSpec(newSpec);
+                setNewSpec("");
               }}
             >
               <input
                 value={newSpec}
                 onChange={(e) => setNewSpec(e.target.value)}
-                placeholder="+ spec"
-                className="w-24 rounded-md border border-[var(--border)] bg-transparent px-2 py-0.5 text-xs"
+                placeholder="+ spec ou − excluir"
+                title='Adicione spec ("16gb") ou exclua termo ("-notebook")'
+                className="w-32 rounded-md border border-[var(--border)] bg-transparent px-2 py-0.5 text-xs"
               />
             </form>
           </div>
           <p className="text-xs muted">
-            Alternativas aparecem abaixo com marca distinta e alerta separado.
+            Alternativas aparecem abaixo com marca distinta e alerta separado. Chips vermelhos
+            (−) excluem anúncios com aquele termo — ex.: <em>-notebook</em> em RAM de desktop.
           </p>
         </>
       )}

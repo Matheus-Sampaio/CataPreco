@@ -30,10 +30,16 @@ export async function PATCH(req: Request, { params }: Params) {
     dropPct?: number | null;
     flexBrands?: boolean;
     specTokens?: string[];
+    negativeSpecs?: string[];
   };
 
   const owned = await prisma.product.findFirst({ where: { id, userId: user.id } });
   if (!owned) return NextResponse.json({ error: "não encontrado" }, { status: 404 });
+
+  const clean = (xs: string[]) => xs.map((t) => t.toLowerCase().trim()).filter((t) => t.length >= 2);
+  // specs mudaram → flex re-roda já no próximo tick em vez de esperar 6h
+  const specsTouched = body.specTokens !== undefined || body.negativeSpecs !== undefined
+    || (body.flexBrands !== undefined && body.flexBrands !== owned.flexBrands);
 
   const product = await prisma.product.update({
     where: { id },
@@ -44,9 +50,9 @@ export async function PATCH(req: Request, { params }: Params) {
       ...(body.dropAbsCents !== undefined ? { dropAbsCents: body.dropAbsCents } : {}),
       ...(body.dropPct !== undefined ? { dropPct: body.dropPct } : {}),
       ...(body.flexBrands !== undefined ? { flexBrands: body.flexBrands } : {}),
-      ...(body.specTokens !== undefined
-        ? { specTokens: body.specTokens.map((t) => t.toLowerCase().trim()).filter((t) => t.length >= 2) }
-        : {}),
+      ...(body.specTokens !== undefined ? { specTokens: clean(body.specTokens) } : {}),
+      ...(body.negativeSpecs !== undefined ? { negativeSpecs: clean(body.negativeSpecs) } : {}),
+      ...(specsTouched ? { lastFlexSearchAt: null } : {}),
     },
   });
   return NextResponse.json({ product });

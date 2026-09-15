@@ -32,6 +32,7 @@ export interface UiProduct {
   lowestEverCents: number | null;
   flexBrands: boolean;
   specTokens: string[] | null;
+  negativeSpecs: string[] | null;
   category: string | null;
   pendingCandidates: PriceCandidate[] | null;
   listings: UiListing[];
