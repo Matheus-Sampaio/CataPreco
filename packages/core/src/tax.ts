@@ -88,3 +88,33 @@ export function isCrossBorderDomain(hostname: string): boolean {
   if (host.endsWith(".br")) return false;
   return CROSS_BORDER_DOMAINS.some((d) => host.includes(d));
 }
+
+/**
+ * Variante para preços JÁ EM BRL (ex.: pt.aliexpress.com mostra R$).
+ * Mesma regra, com a faixa de US$ 50 e o desconto de US$ 20 convertidos via fxRate.
+ */
+export function calculateRemessaConformeBrl(
+  productBrlCents: Cents,
+  opts: { fxRate: number; icmsRate?: number },
+): TaxBreakdown {
+  const icmsRate = opts.icmsRate ?? DEFAULT_ICMS_RATE;
+  const thresholdBrl = Math.round(PRC_THRESHOLD_USD_CENTS * opts.fxRate);
+  const discountBrl = Math.round(PRC_DISCOUNT_USD_CENTS * opts.fxRate);
+
+  const importTaxBrl = Math.round(
+    productBrlCents <= thresholdBrl
+      ? productBrlCents * 0.2
+      : Math.max(0, productBrlCents * 0.6 - discountBrl),
+  );
+  const base = productBrlCents + importTaxBrl;
+  const totalBrl = Math.round(base / (1 - icmsRate));
+
+  return {
+    productUsdCents: Math.round(productBrlCents / opts.fxRate),
+    productBrlCents,
+    importTaxBrlCents: importTaxBrl,
+    icmsBrlCents: totalBrl - base,
+    totalBrlCents: totalBrl,
+    effectiveMultiplier: totalBrl / productBrlCents,
+  };
+}

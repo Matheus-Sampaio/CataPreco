@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { RefreshCw, Trash2 } from "lucide-react";
-import { calculateRemessaConforme, countdownMs, discountPct, formatCountdown, intervalProgress } from "@catapreco/core";
+import { calculateRemessaConforme, calculateRemessaConformeBrl, countdownMs, discountPct, formatCountdown, intervalProgress } from "@catapreco/core";
 import { Badge, Price, StockBadge } from "@/components/ui";
 import type { UiProduct } from "@/components/types";
 
@@ -38,14 +38,27 @@ export function ProductCard({
 
   const busy = product.status === "extracting" || product.status === "searching";
 
-  // Remessa Conforme: international products show the taxed total estimate
+  // Imposto de importação: decisão POR LISTING (detectada na página) com
+  // fallback pro checkbox do produto quando a página não informou nada.
   const cheapestNative = product.listings
     .filter((l) => l.priceCents != null)
     .sort((a, b) => a.priceCents! - b.priceCents!)[0];
-  const international = product.remessaConforme && cheapestNative && cheapestNative.currency !== "BRL" && fxUsdBrl;
-  const taxed = international
-    ? calculateRemessaConforme(cheapestNative!.priceCents!, { fxRate: fxUsdBrl!, icmsRate })
-    : null;
+
+  let taxed: { totalBrlCents: number } | null = null;
+  let taxIncludedPrice = false; // preço exibido já inclui imposto
+  if (cheapestNative) {
+    const l = cheapestNative;
+    if (l.imported === true && l.taxIncluded === true) {
+      taxIncludedPrice = true;
+    } else if (l.imported === true && fxUsdBrl) {
+      taxed = l.currency === "BRL"
+        ? calculateRemessaConformeBrl(l.priceCents!, { fxRate: fxUsdBrl, icmsRate })
+        : calculateRemessaConforme(l.priceCents!, { fxRate: fxUsdBrl, icmsRate });
+    } else if (l.imported == null && product.remessaConforme && l.currency !== "BRL" && fxUsdBrl) {
+      // fallback legado: produto marcado como remessa conforme, página não informou
+      taxed = calculateRemessaConforme(l.priceCents!, { fxRate: fxUsdBrl, icmsRate });
+    }
+  }
 
   return (
     <div className="card overflow-hidden">
@@ -72,7 +85,10 @@ export function ProductCard({
                   <Badge tone="warn">c/ impostos</Badge>
                 </>
               ) : (
-                <Price cents={product.minPriceCents} currency={product.currency} className="text-lg font-bold" />
+                <>
+                  <Price cents={product.minPriceCents} currency={product.currency} className="text-lg font-bold" />
+                  {taxIncludedPrice && <Badge tone="good">imposto incluído</Badge>}
+                </>
               )}
               {discount > 0 && <Badge tone="good">-{discount}%</Badge>}
               {primary && <StockBadge stock={primary.stock} />}

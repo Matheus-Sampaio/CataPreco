@@ -5,6 +5,7 @@ export * from "./extractors/types";
 export * from "./extractors/jsonld";
 export * from "./extractors/generic";
 export * from "./extractors/ai";
+export * from "./extractors/importinfo";
 export * from "./adapters/types";
 export * from "./adapters/registry";
 export * from "./ai-classify";

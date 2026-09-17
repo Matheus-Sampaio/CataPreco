@@ -402,6 +402,21 @@ function OfferRow({ l, alternative = false }: { l: UiListing; alternative?: bool
             </span>
           )}
           {l.isAlternative && <Badge tone="warn">spec</Badge>}
+          {l.imported === true && l.taxIncluded === true && (
+            <span className="rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 text-xs font-medium">
+              importado · imposto incluído
+            </span>
+          )}
+          {l.imported === true && l.taxIncluded !== true && (
+            <span className="rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 px-2 py-0.5 text-xs font-medium">
+              importado{l.taxIncluded === false ? " · + impostos" : " · impostos?"}
+            </span>
+          )}
+          {l.imported === false && (
+            <span className="rounded-full bg-sky-500/15 text-sky-600 dark:text-sky-400 px-2 py-0.5 text-xs font-medium">
+              envio nacional
+            </span>
+          )}
         </p>
         <p className="truncate text-xs muted">{l.title ?? l.url}</p>
       </div>

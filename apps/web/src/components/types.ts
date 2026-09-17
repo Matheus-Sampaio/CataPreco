@@ -13,6 +13,8 @@ export interface UiListing {
   listPriceCents: number | null;
   currency: string;
   stock: string;
+  imported: boolean | null;
+  taxIncluded: boolean | null;
   lastCheckedAt: string | null;
 }
 

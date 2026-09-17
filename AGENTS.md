@@ -34,6 +34,13 @@
 - `refreshProductAggregates` ignora listings `isAlternative` — o preço do produto é só o dele; alternativas viram linha própria no gráfico de histórico (altSeries).
 - Editar specs/flexBrands via PATCH zera `lastFlexSearchAt` → flex re-roda no próximo tick.
 
+## Busca cross-marketplace
+- Fontes: ML, Amazon BR, KaBuM + **DDG web** (`html.duckduckgo.com/html`) para lojas nicho (não têm adapter: são VTEX/Shopify/WooCommerce com JSON-LD limpo). Ads `y.js` e redes sociais são filtrados; `SearchHit.priceCents` pode ser null — a extração preenche no check.
+
+## Importação (Remessa Conforme)
+- `detectImportInfo(html, url)` (extractors/importinfo.ts) devolve `imported`/`taxIncluded` por sinais na página ("estoque no brasil", "envio internacional", "imposto incluído", ...) + heurística de host cross-border. Persistido na Listing; Product card usa detecção por listing, com fallback pro checkbox `remessaConforme` do produto.
+- `calculateRemessaConformeBrl` faz a conta para preços já em BRL (pt.aliexpress); `calculateRemessaConforme` para USD.
+
 ## Firecrawl (último recurso)
 - `FirecrawlPort` em `apps/worker/src/runtime/firecrawl.ts` → usado quando a cascata local (native→browser→proxy) é bloqueada. Env: `FIRECRAWL_API_KEY`/`FIRECRAWL_API_URL`.
 - Self-host foi testado e **removido**: compartilhava o mesmo IP do homelab, então não passa ban por IP; e custava ~4GB de RAM. Se um dia usar Firecrawl Cloud (proxies residenciais, pago), basta ligar o env.

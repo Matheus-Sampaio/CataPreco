@@ -101,7 +101,8 @@ export function evaluateTransition(
   if (targetCents && hitTarget(prevCents, nextCents, targetCents)) {
     events.push({ kind: "target_hit", prevCents: prevCents ?? undefined, nextCents });
   }
-  if (backInStock(prevStock, nextStock)) {
+  // primeira leitura (prevCents null) não é "voltou ao estoque" — é só o estado inicial
+  if (prevCents !== null && backInStock(prevStock, nextStock)) {
     events.push({ kind: "back_in_stock", nextCents });
   }
   return events;

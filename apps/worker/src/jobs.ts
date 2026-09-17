@@ -173,6 +173,11 @@ export async function jobExtract(deps: JobDeps, product: Product): Promise<void>
 
   const nativeCents = result.selected?.valueCents ?? null;
   const brlCents = await toBrl(nativeCents, result.currency);
+  const importData = {
+    // detecção de importação: só sobrescreve quando a página informou algo
+    ...(result.imported != null ? { imported: result.imported } : {}),
+    ...(result.taxIncluded != null ? { taxIncluded: result.taxIncluded } : {}),
+  };
   const listingData = {
     marketplace: marketplaceName(product.url),
     url: product.url,
@@ -183,6 +188,7 @@ export async function jobExtract(deps: JobDeps, product: Product): Promise<void>
     priceCents: nativeCents,
     priceBrlCents: brlCents,
     lastCheckedAt: new Date(),
+    ...importData,
   };
 
   let listing = await db.listing.findUnique({
@@ -333,7 +339,7 @@ export async function jobSearchFlex(deps: JobDeps, product: Product): Promise<vo
         added++;
         // notificação dedicada à parte: 'achei alternativa compatível mais barata'
         const ref = product.minPriceCents ?? 0;
-        if (ref > 0 && hit.priceCents < ref) {
+        if (ref > 0 && hit.priceCents != null && hit.priceCents < ref) {
           await dispatchEvent(
             { kind: "alternative_cheaper", prevCents: ref, nextCents: hit.priceCents },
             { title: hit.title, url: normUrl, marketplace: hit.marketplace },
@@ -424,7 +430,7 @@ export async function jobSearch(
       let added = 0;
       for (const hit of hits.slice(0, 3)) {
         if (existingNormal.has(normalizeProductUrl(hit.url))) continue;
-        await db.listing.upsert({
+        const saved = await db.listing.upsert({
           where: { productId_url: { productId: product.id, url: hit.url } },
           create: {
             productId: product.id,
@@ -432,16 +438,22 @@ export async function jobSearch(
             url: hit.url,
             title: hit.title,
             isPrimary: false,
-            priceCents: hit.priceCents,
+            priceCents: hit.priceCents, // pode ser null (busca web) — extração preenche depois
             currency: "BRL",
             matchScore: hit.score,
             lastCheckedAt: new Date(),
           },
-          update: { priceCents: hit.priceCents, matchScore: hit.score, title: hit.title },
+          update: {
+            ...(hit.priceCents != null ? { priceCents: hit.priceCents } : {}),
+            matchScore: hit.score,
+            title: hit.title,
+          },
         });
-        await db.pricePoint.create({
-          data: { listingId: (await db.listing.findUniqueOrThrow({ where: { productId_url: { productId: product.id, url: hit.url } } })).id, priceCents: hit.priceCents, stock: "in_stock" },
-        }).catch(() => {});
+        if (hit.priceCents != null) {
+          await db.pricePoint.create({
+            data: { listingId: saved.id, priceCents: hit.priceCents, stock: "in_stock" },
+          }).catch(() => {});
+        }
         added++;
       }
       log(`search ${source.id}: ${hits.length} matches, ${added} added`);
@@ -504,7 +516,16 @@ export async function jobCheck(deps: JobDeps, product: Product & { listings: Lis
     await db.pricePoint.create({ data: { listingId: listing.id, priceCents: priceBrl ?? price, stock } });
     await db.listing.update({
       where: { id: listing.id },
-      data: { priceCents: price, priceBrlCents: priceBrl, stock, lastCheckedAt: new Date(), currency: result.currency },
+      data: {
+        priceCents: price,
+        priceBrlCents: priceBrl,
+        stock,
+        lastCheckedAt: new Date(),
+        currency: result.currency,
+        // detecção de importação: só atualiza quando a página informou
+        ...(result.imported != null ? { imported: result.imported } : {}),
+        ...(result.taxIncluded != null ? { taxIncluded: result.taxIncluded } : {}),
+      },
     });
 
     const comparable = priceBrl ?? price; // alertas sempre em BRL

@@ -104,8 +104,12 @@ model Listing {
   title        String?
   /// true for the URL the user pasted; false for auto-found matches
   isPrimary    Boolean  @default(false)
-  /// true when found via spec-based (brand-flexible) search
+  /// true quando encontrada via busca por spec (outra marca)
   isAlternative Boolean @default(false)
+  /// detectado na página: item é importado (envio internacional)?
+  imported     Boolean?
+  /// detectado na página: preço já inclui imposto de importação?
+  taxIncluded  Boolean?
   /// brand detected from title (e.g. "sandisk") for alternatives
   brand        String?
   /// price in the listing's native currency; BRL-normalized copy lives in priceBrlCents

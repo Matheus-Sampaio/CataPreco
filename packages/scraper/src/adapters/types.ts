@@ -20,6 +20,7 @@ export interface SearchHit {
   marketplace: string;
   title: string;
   url: string;
-  priceCents: number;
+  /** null quando a fonte (ex.: busca web) não expõe preço — a extração preenche depois */
+  priceCents: number | null;
   image: string | null;
 }

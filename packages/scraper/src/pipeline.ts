@@ -20,6 +20,7 @@ import { extractGeneric, visibleTextSummary } from "./extractors/generic";
 import { aiToResult, buildArbitrationPrompt, buildExtractPrompt, parseAiJson, type AiExtractedProduct } from "./extractors/ai";
 import { findAdapter } from "./adapters/registry";
 import { mergeResults, type ExtractionResult } from "./extractors/types";
+import { detectImportInfo, type ImportInfo } from "./extractors/importinfo";
 
 export interface PipelineOptions {
   /** Pre-fetched HTML (tests / captured pages). Skips fetch when set. */
@@ -45,6 +46,9 @@ export interface PipelineResult {
   usedAi: boolean;
   logs: string[];
   fetchedAt: Date;
+  /** Detecção de importação (Remessa Conforme) — null = página não informa */
+  imported: boolean | null;
+  taxIncluded: boolean | null;
 }
 
 export async function scrapeProduct(
@@ -152,6 +156,13 @@ export async function scrapeProduct(
 
   const cleanName = sanitizeProductName(merged.name);
 
+  const importInfo: ImportInfo = detectImportInfo(html, url);
+  if (importInfo.imported !== null) {
+    logs.push(
+      `import: ${importInfo.imported ? "importado" : "nacional"}${importInfo.taxIncluded === true ? " (imposto incluído)" : importInfo.taxIncluded === false ? " (imposto no checkout)" : ""}`,
+    );
+  }
+
   return {
     url,
     ok: true,
@@ -167,6 +178,8 @@ export async function scrapeProduct(
     usedAi,
     logs,
     fetchedAt: new Date(),
+    imported: importInfo.imported,
+    taxIncluded: importInfo.taxIncluded,
   };
 }
 
@@ -188,7 +201,7 @@ function fail(url: string, error: string, logs: string[], httpStatus?: number): 
   return {
     url, ok: false, error, httpStatus, name: null, image: null, currency: "BRL",
     stock: "unknown", candidates: [], selected: null, needsReview: false,
-    usedAi: false, logs, fetchedAt: new Date(),
+    usedAi: false, logs, fetchedAt: new Date(), imported: null, taxIncluded: null,
   };
 }
 

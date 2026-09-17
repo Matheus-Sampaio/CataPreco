@@ -220,6 +220,59 @@ export function parseKabumSearchHtml(html: string): SearchHit[] {
   }
 }
 
+// ---------------- Busca web genérica (DuckDuckGo HTML, sem JS) ----------------
+// Cobre lojas nicho (3D Prime, Beehive, etc.) que não têm adapter próprio:
+// a descoberta vem do DDG; o PREÇO é extraído depois pelo pipeline normal
+// (esses sites pequenos são VTEX/Shopify/WooCommerce com JSON-LD limpo).
+
+export const DDG_SEARCH_URL = (q: string) =>
+  `https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}&kl=br-pt`;
+
+/** Domínios que nunca são loja — redes sociais, vídeos, o próprio DDG. */
+const WEB_SEARCH_BLOCKLIST = [
+  "duckduckgo.com", "youtube.com", "facebook.com", "instagram.com",
+  "tiktok.com", "pinterest.", "x.com", "twitter.com", "reddit.com",
+  "linkedin.com", "whatsapp.com", "t.me", "quora.com",
+];
+
+export function parseDuckDuckGoHtml(html: string): SearchHit[] {
+  const $ = load(html);
+  const hits: SearchHit[] = [];
+  const seen = new Set<string>();
+
+  $("a.result__a").slice(0, 25).each((_, el) => {
+    const href = $(el).attr("href") ?? "";
+    // anúncios/trackers do DDG não são resultados orgânicos
+    if (!href || href.includes("duckduckgo.com/y.js")) return;
+    const uddg = href.match(/uddg=([^&]+)/);
+    const url = uddg ? decodeURIComponent(uddg[1]!) : href;
+    let host: string;
+    try {
+      host = new URL(url).hostname.toLowerCase().replace(/^www\./, "");
+    } catch {
+      return;
+    }
+    if (WEB_SEARCH_BLOCKLIST.some((b) => host.includes(b))) return;
+
+    const title = $(el).text().trim();
+    if (!title || seen.has(url)) return;
+    seen.add(url);
+
+    // preço às vezes aparece no snippet ("R$ 1.234,56") — opcional
+    const snippet = $(el).closest(".result").find(".result__snippet").first().text();
+    const snipPrice = snippet.match(/R\$\s*([\d][\d.,]*)/);
+
+    hits.push({
+      marketplace: host,
+      title,
+      url,
+      priceCents: snipPrice ? parsePrice(snipPrice[1]!) : null,
+      image: null,
+    });
+  });
+  return hits;
+}
+
 export interface SearchSource {
   id: string;
   marketplace: string;
@@ -232,4 +285,5 @@ export const SEARCH_SOURCES: SearchSource[] = [
   { id: "ml", marketplace: "Mercado Livre", buildUrl: ML_SEARCH_URL, format: "html", parse: parseMlSearchHtml },
   { id: "amazon-br", marketplace: "Amazon Brasil", buildUrl: AMAZON_BR_SEARCH_URL, format: "html", parse: parseAmazonSearchHtml },
   { id: "kabum", marketplace: "KaBuM!", buildUrl: KABUM_SEARCH_URL, format: "html", parse: parseKabumSearchHtml },
+  { id: "ddg", marketplace: "Busca web", buildUrl: DDG_SEARCH_URL, format: "html", parse: parseDuckDuckGoHtml },
 ];
