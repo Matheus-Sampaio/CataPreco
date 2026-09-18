@@ -73,6 +73,7 @@ const TRACKING_PARAMS = new Set([
   "tracking_id", "polycard_client", "be_origin", "overlay_label",
   "search_layout", "position", "type", "initiative", "wid", "sid",
   "float_highlight", "ref", "tag", "linkCode", "ascsubtag",
+  "msockid", "gclid", "gad_source", "gad_campaignid", "fbclid",
 ]);
 
 /**

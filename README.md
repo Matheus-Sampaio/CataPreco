@@ -9,7 +9,7 @@
 [![Prisma](https://img.shields.io/badge/Prisma-16-2D3748?logo=prisma&logoColor=white)](https://www.prisma.io/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-175%20passing-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-182%20passing-brightgreen)]()
 
 </div>
 
@@ -26,7 +26,7 @@ Cole o link de um produto, e o **CataPreço** extrai nome, preço e disponibilid
 - 🎯 **Preço-alvo**, queda percentual e **alertas de volta ao estoque**
 - 🧠 **Alternativas por spec** (brand-flexible): "aceito outra marca se a especificação bater" — SSD 1TB NVMe Gen4 de qualquer marca, com **specs negativas** (`-notebook` exclui o termo) e linha própria no gráfico de histórico
 - 🇧🇷 **Remessa Conforme** — detecção automática **por anúncio**: item nacional vs importado e imposto já incluído ou não (mesmo marketplace misto). Estimativa de imposto só quando faz sentido
-- 🌐 **Busca web (DuckDuckGo)** — descobre o produto em lojas nicho além dos marketplaces (3D Prime, Beehive, Pichau…)
+- 🌐 **Busca web (DuckDuckGo + Bing)** — descobre o produto em lojas nicho além dos marketplaces (Terabyte, Pichau, 3D Prime, Beehive, GTMax…)
 - 👥 **Multi-usuário** com painel admin e controle de cadastro
 - 📱 **PWA** + modo claro/escuro + design responsivo
 - 🕶️ **Anti-bot inteligente**: Chromium stealth, warm-up de cookies, proxy pool rotativo e detecção de captcha

@@ -53,6 +53,19 @@ export function modelTokensOf(normalized: string): Set<string> {
   return out;
 }
 
+/**
+ * "Detail" = token que EMBUTE outro token modelo (part numbers tipo
+ * "pvrtx5060tib2f16g" contêm "5060"). Detalhes são identificadores de loja,
+ * não do produto — não podem faltar nem poluir queries.
+ */
+export function isDetailModelToken(token: string, universe: Set<string>): boolean {
+  if (token.length > 12) return true; // PN longo demais pra ser nome de modelo
+  for (const u of universe) {
+    if (u !== token && token.includes(u)) return true;
+  }
+  return false;
+}
+
 /** Accessory/refurb markers that make a listing NOT the same product. */
 const ACCESSORY_TOKENS = [
   "compativel", "compatível", "capa", "pelicula", "película", "case",
@@ -95,7 +108,12 @@ export function matchScore(productName: string, listingTitle: string): MatchScor
     if (a !== mA && b !== mB) return false; // ambos têm unidade: decidir por valor exato de a===b
     return a === b;
   };
-  const missing = [...modelsA].filter((m) => ![...modelsB].some((b) => modelEqual(m, b)));
+  // part numbers embutidos ("pvrtx5060tib2f16g" ⊃ "5060") são detalhe, não exigência
+  const modelsACore = [...modelsA].filter((m) => !isDetailModelToken(m, modelsA));
+  const bList = [...modelsB];
+  const missing = modelsACore.filter(
+    (m) => !bList.some((b) => modelEqual(m, b)) && !bList.some((b) => m.includes(b) || b.includes(m)),
+  );
   if (modelsA.size > 0) {
     if (missing.length === 0) {
       score += 0.25;

@@ -66,4 +66,20 @@ describe("matchScore", () => {
     const b = matchScore("SSD Kingston NV2 1TB", "SSD Kingston NV2 500GB");
     expect(b.score).toBeLessThan(0.55);
   });
+
+  it("part number da loja (PvRTX5060tib2f16g) não impede o match do mesmo modelo", () => {
+    const s = matchScore(
+      "Placa De Vídeo PCyes Nvidia Geforce RTX 5060 Ti, 16gb, Gddr7, Dlss, Ray Tracing, PvRTX5060tib2f16g",
+      "Placa de Vídeo ASUS GeForce RTX 5060 Ti Dual OC 16GB GDDR7",
+    );
+    expect(s.score).toBeGreaterThanOrEqual(0.55);
+  });
+
+  it("modelo errado continua rejeitado mesmo com PN embutido", () => {
+    const s = matchScore(
+      "Placa De Vídeo PCyes RTX 5060 Ti 16gb Gddr7 PvRTX5060tib2f16g",
+      "Placa de Vídeo RTX 3050 8GB GDDR6",
+    );
+    expect(s.score).toBeLessThan(0.55);
+  });
 });

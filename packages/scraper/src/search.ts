@@ -7,7 +7,7 @@
  */
 
 import { load } from "cheerio";
-import { parsePrice, normalizeName, modelTokensOf, matchScore, DEFAULT_MATCH_THRESHOLD } from "@catapreco/core";
+import { parsePrice, normalizeName, modelTokensOf, isDetailModelToken, matchScore, DEFAULT_MATCH_THRESHOLD } from "@catapreco/core";
 import type { SearchHit } from "./adapters/types";
 
 export interface ScoredHit extends SearchHit {
@@ -38,7 +38,7 @@ const FILLER_TOKENS = new Set([
 export function buildQuery(productName: string): string {
   const norm = normalizeName(productName);
   const tokens = norm.split(" ").filter((t) => t.length > 1);
-  const models = modelTokensOf(norm);
+  const models = new Set([...modelTokensOf(norm)].filter((m) => !isDetailModelToken(m, modelTokensOf(norm))));
 
   const picked: string[] = [];
   const add = (t: string) => {
@@ -50,7 +50,7 @@ export function buildQuery(productName: string): string {
     if (picked.length >= 2) break;
     add(t);
   }
-  // 2) todos os model tokens (códigos de marca/modelo importam)
+  // 2) model tokens essenciais (part numbers embutidos ficam de fora)
   for (const m of models) add(m);
   // 3) preenche o restante com os próximos tokens (geralmente a marca)
   for (const t of tokens) add(t);
@@ -228,12 +228,28 @@ export function parseKabumSearchHtml(html: string): SearchHit[] {
 export const DDG_SEARCH_URL = (q: string) =>
   `https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}&kl=br-pt`;
 
-/** Domínios que nunca são loja — redes sociais, vídeos, o próprio DDG. */
+/** Domínios que nunca são loja — redes sociais, vídeos, o próprio buscador. */
 const WEB_SEARCH_BLOCKLIST = [
-  "duckduckgo.com", "youtube.com", "facebook.com", "instagram.com",
+  "duckduckgo.com", "bing.com", "google.",
+  "youtube.com", "facebook.com", "instagram.com",
   "tiktok.com", "pinterest.", "x.com", "twitter.com", "reddit.com",
   "linkedin.com", "whatsapp.com", "t.me", "quora.com",
+  "techpowerup.com", "en.wikipedia", "pt.wikipedia",
 ];
+
+/** URLs que são páginas de BUSCA, não de produto (extrair nelas não acha preço). */
+const SEARCH_PAGE_RE = /(^lista\.|\/busca\b|\/search\b|\/s\?)/i;
+
+/** Remove resultados que não apontam pra uma página de produto comprável. */
+function isProductLanding(url: string): boolean {
+  try {
+    const u = new URL(url);
+    if (SEARCH_PAGE_RE.test(u.hostname) || SEARCH_PAGE_RE.test(u.pathname)) return false;
+    return u.pathname.length > 2; // "/" raiz nunca é produto
+  } catch {
+    return false;
+  }
+}
 
 export function parseDuckDuckGoHtml(html: string): SearchHit[] {
   const $ = load(html);
@@ -253,6 +269,7 @@ export function parseDuckDuckGoHtml(html: string): SearchHit[] {
       return;
     }
     if (WEB_SEARCH_BLOCKLIST.some((b) => host.includes(b))) return;
+    if (!isProductLanding(url)) return;
 
     const title = $(el).text().trim();
     if (!title || seen.has(url)) return;
@@ -260,7 +277,69 @@ export function parseDuckDuckGoHtml(html: string): SearchHit[] {
 
     // preço às vezes aparece no snippet ("R$ 1.234,56") — opcional
     const snippet = $(el).closest(".result").find(".result__snippet").first().text();
-    const snipPrice = snippet.match(/R\$\s*([\d][\d.,]*)/);
+    const snipPrice = snippet.match(/R\$\s*([\d]+(?:[.,][\d]+)*)/);
+
+    hits.push({
+      marketplace: host,
+      title,
+      url,
+      priceCents: snipPrice ? parsePrice(snipPrice[1]!) : null,
+      image: null,
+    });
+  });
+  return hits;
+}
+
+// ---------------- Bing (resultados orgânicos com redirect /ck/a?u=a1<base64>) ----------------
+
+export const BING_SEARCH_URL = (q: string) =>
+  `https://www.bing.com/search?q=${encodeURIComponent(q)}&setlang=pt-br&cc=br`;
+
+/** Desembrulha o redirect do Bing: /ck/a?...&u=a1<base64url da URL real>. */
+export function unwrapBingUrl(href: string): string | null {
+  try {
+    const u = new URL(href);
+    if (u.hostname.includes("bing.com")) {
+      const packed = u.searchParams.get("u") ?? "";
+      if (packed.startsWith("a1")) {
+        const b64 = packed.slice(2).replace(/-/g, "+").replace(/_/g, "/");
+        return Buffer.from(b64, "base64").toString("utf-8");
+      }
+      return null;
+    }
+    return href;
+  } catch {
+    return null;
+  }
+}
+
+export function parseBingSearchHtml(html: string): SearchHit[] {
+  const $ = load(html);
+  const hits: SearchHit[] = [];
+  const seen = new Set<string>();
+
+  $("li.b_algo").slice(0, 20).each((_, el) => {
+    const a = $(el).find("h2 a").first();
+    const raw = a.attr("href") ?? "";
+    if (!raw) return;
+    const url = unwrapBingUrl(raw);
+    if (!url) return;
+    let host: string;
+    try {
+      host = new URL(url).hostname.toLowerCase().replace(/^www\./, "");
+    } catch {
+      return;
+    }
+    if (WEB_SEARCH_BLOCKLIST.some((b) => host.includes(b))) return;
+    if (!isProductLanding(url)) return;
+
+    const title = a.text().trim();
+    if (!title || seen.has(url)) return;
+    seen.add(url);
+
+    // snippet do Bing: .b_caption p
+    const snippet = $(el).find(".b_caption p").first().text();
+    const snipPrice = snippet.match(/R\$\s*([\d]+(?:[.,][\d]+)*)/);
 
     hits.push({
       marketplace: host,
@@ -279,11 +358,14 @@ export interface SearchSource {
   buildUrl: (query: string) => string;
   format: "json" | "html";
   parse: (payload: string) => SearchHit[];
+  /** fontes web: acumula hits dos 2 primeiros degraus da ladder (cobertura > precisão) */
+  accumulate?: boolean;
 }
 
 export const SEARCH_SOURCES: SearchSource[] = [
   { id: "ml", marketplace: "Mercado Livre", buildUrl: ML_SEARCH_URL, format: "html", parse: parseMlSearchHtml },
   { id: "amazon-br", marketplace: "Amazon Brasil", buildUrl: AMAZON_BR_SEARCH_URL, format: "html", parse: parseAmazonSearchHtml },
   { id: "kabum", marketplace: "KaBuM!", buildUrl: KABUM_SEARCH_URL, format: "html", parse: parseKabumSearchHtml },
-  { id: "ddg", marketplace: "Busca web", buildUrl: DDG_SEARCH_URL, format: "html", parse: parseDuckDuckGoHtml },
+  { id: "ddg", marketplace: "Busca web", buildUrl: DDG_SEARCH_URL, format: "html", parse: parseDuckDuckGoHtml, accumulate: true },
+  { id: "bing", marketplace: "Busca web", buildUrl: BING_SEARCH_URL, format: "html", parse: parseBingSearchHtml, accumulate: true },
 ];

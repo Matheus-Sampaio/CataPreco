@@ -413,22 +413,37 @@ export async function jobSearch(
     try {
       // ladder: tenta queries do mais específico ao mais amplo
       let hits: ReturnType<typeof filterMatchingHits> = [];
-      for (const [level, q] of ladder.entries()) {
-        const res = await deps.fetch.get(source.buildUrl(q));
-        if (res.status !== 200) {
-          log(`search ${source.id} L${level}: HTTP ${res.status}`);
-          continue;
+      if (source.accumulate) {
+        // fontes web: junta os 2 primeiros degraus (cobertura vale mais que precisão)
+        const raw: Parameters<typeof filterMatchingHits>[1] = [];
+        for (const [level, q] of ladder.slice(0, 2).entries()) {
+          const res = await deps.fetch.get(source.buildUrl(q));
+          if (res.status !== 200) {
+            log(`search ${source.id} L${level}: HTTP ${res.status}`);
+            continue;
+          }
+          raw.push(...source.parse(res.html));
         }
-        hits = filterMatchingHits(title, source.parse(res.html));
-        if (hits.length > 0) break;
-        log(`search ${source.id} L${level} ("${q}"): 0 matches, descendo na ladder`);
+        const uniq = [...new Map(raw.map((h) => [normalizeProductUrl(h.url), h])).values()];
+        hits = filterMatchingHits(title, uniq);
+      } else {
+        for (const [level, q] of ladder.entries()) {
+          const res = await deps.fetch.get(source.buildUrl(q));
+          if (res.status !== 200) {
+            log(`search ${source.id} L${level}: HTTP ${res.status}`);
+            continue;
+          }
+          hits = filterMatchingHits(title, source.parse(res.html));
+          if (hits.length > 0) break;
+          log(`search ${source.id} L${level} ("${q}"): 0 matches, descendo na ladder`);
+        }
       }
       if (hits.length === 0) {
         log(`search ${source.id}: 0 matches em toda a ladder`);
         continue;
       }
       let added = 0;
-      for (const hit of hits.slice(0, 3)) {
+      for (const hit of hits.slice(0, source.accumulate ? 5 : 3)) {
         if (existingNormal.has(normalizeProductUrl(hit.url))) continue;
         const saved = await db.listing.upsert({
           where: { productId_url: { productId: product.id, url: hit.url } },

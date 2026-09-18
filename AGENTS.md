@@ -35,7 +35,8 @@
 - Editar specs/flexBrands via PATCH zera `lastFlexSearchAt` → flex re-roda no próximo tick.
 
 ## Busca cross-marketplace
-- Fontes: ML, Amazon BR, KaBuM + **DDG web** (`html.duckduckgo.com/html`) para lojas nicho (não têm adapter: são VTEX/Shopify/WooCommerce com JSON-LD limpo). Ads `y.js` e redes sociais são filtrados; `SearchHit.priceCents` pode ser null — a extração preenche no check.
+- Fontes: ML, Amazon BR, KaBuM + **DDG** (`html.duckduckgo.com/html`) e **Bing** (`bing.com/search`, redirect `/ck/a?u=a1<base64>`) para lojas nicho (Terabyte, Pichau, 3D Prime — VTEX/Shopify/Woo com JSON-LD limpo). Ads e páginas de busca (`lista.*`, `/busca`) são filtrados; `SearchHit.priceCents` pode ser null — a extração preenche no check.
+- Fontes web (`accumulate: true`) somam os 2 primeiros degraus da ladder por cobertura e adicionam até 5 listings (outras fontes: 3, para no primeiro nível com hit).
 
 ## Importação (Remessa Conforme)
 - `detectImportInfo(html, url)` (extractors/importinfo.ts) devolve `imported`/`taxIncluded` por sinais na página ("estoque no brasil", "envio internacional", "imposto incluído", ...) + heurística de host cross-border. Persistido na Listing; Product card usa detecção por listing, com fallback pro checkbox `remessaConforme` do produto.
