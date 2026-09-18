@@ -51,8 +51,9 @@ Acesse **http://localhost:3000** e cadastre o primeiro usuário (vira admin auto
 |---|---|---|
 | `DB_PASSWORD` | ✅ | Senha do PostgreSQL |
 | `PROXY_URL` / `PROXY_INTERNATIONAL_URL` | — | Proxy fixo (ou para lojas internacionais) |
-| `PROXY_POOL` | — | `1` = pool de proxies grátis rotativos |
+| `PROXY_POOL` | — | `1` = pool de proxies grátis como último recurso |
 | `FIRECRAWL_API_KEY` / `FIRECRAWL_API_URL` | — | Último recurso anti-bot (cloud ou self-host) |
+| `SEARXNG_URL` / `SEARXNG_REPLICAS` | — | Meta-busca de lojas nicho — ligada por padrão; `SEARXNG_URL=` vazio + `SEARXNG_REPLICAS=0` desliga |
 
 A IA é configurável pela UI (⚙️ → IA): **Ollama** (local), **OpenAI‑compatible** (incluindo **NVIDIA NIM** grátis), ou **Anthropic**.
 
