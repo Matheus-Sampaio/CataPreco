@@ -53,9 +53,33 @@ services:
       PROXY_POOL: ${PROXY_POOL:-0}
       FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
       FIRECRAWL_API_URL: ${FIRECRAWL_API_URL:-}
+      SEARXNG_URL: ${SEARXNG_URL:-http://searxng:8080}
     depends_on:
       migrate:
         condition: service_completed_successfully
+      searxng:
+        condition: service_started
+
+  # Meta-busca self-hosted — descobre o produto em qualquer loja
+  # (Google/Bing/DDG via engines do SearXNG, formato JSON interno).
+  searxng:
+    image: searxng/searxng:latest
+    container_name: catapreco-searxng
+    restart: unless-stopped
+    # sem porta publicada: só o worker enxerga na rede do compose
+    volumes:
+      - ./searxng:/etc/searxng:rw
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+    logging:
+      driver: json-file
+      options:
+        max-size: "1m"
+        max-file: "2"
 
   tailscale:
     image: tailscale/tailscale:stable

@@ -1,0 +1,9 @@
+# SearXNG mínimo: JSON habilitado, sem limiter (rede interna do compose)
+use_default_settings: true
+server:
+  secret_key: "catapreco-searxng-local"
+  bind_address: "0.0.0.0"
+search:
+  formats:
+    - html
+    - json

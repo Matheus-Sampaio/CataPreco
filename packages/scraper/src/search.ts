@@ -352,6 +352,8 @@ export function parseBingSearchHtml(html: string): SearchHit[] {
   return hits;
 }
 
+// ---------------- SearXNG (meta-busca self-hosted) ----------------
+
 export interface SearchSource {
   id: string;
   marketplace: string;
@@ -360,6 +362,61 @@ export interface SearchSource {
   parse: (payload: string) => SearchHit[];
   /** fontes web: acumula hits dos 2 primeiros degraus da ladder (cobertura > precisão) */
   accumulate?: boolean;
+}
+
+interface SearxngResult {
+  url?: string;
+  title?: string;
+  content?: string; // snippet
+}
+
+/** Parser do formato JSON do SearXNG (/search?format=json). */
+export function parseSearxngJson(payload: string): SearchHit[] {
+  let json: { results?: SearxngResult[] };
+  try {
+    json = JSON.parse(payload);
+  } catch {
+    return [];
+  }
+  const seen = new Set<string>();
+  const hits: SearchHit[] = [];
+  for (const r of json.results ?? []) {
+    const url = r.url ?? "";
+    let host: string;
+    try {
+      host = new URL(url).hostname.toLowerCase().replace(/^www\./, "");
+    } catch {
+      continue;
+    }
+    if (WEB_SEARCH_BLOCKLIST.some((b) => host.includes(b))) continue;
+    if (!isProductLanding(url)) continue;
+    const title = (r.title ?? "").trim();
+    if (!url || !title || seen.has(url)) continue;
+    seen.add(url);
+
+    const snipPrice = (r.content ?? "").match(/R\$\s*([\d]+(?:[.,][\d]+)*)/);
+    hits.push({
+      marketplace: host,
+      title,
+      url,
+      priceCents: snipPrice ? parsePrice(snipPrice[1]!) : null,
+      image: null,
+    });
+  }
+  return hits;
+}
+
+/** Fonte SearXNG com URL configurável por ambiente (SEARXNG_URL). */
+export function makeSearxngSource(baseUrl: string): SearchSource {
+  const base = baseUrl.replace(/\/$/, "");
+  return {
+    id: "searxng",
+    marketplace: "Busca web",
+    buildUrl: (q) => `${base}/search?q=${encodeURIComponent(q)}&format=json&language=pt-BR`,
+    format: "json",
+    parse: parseSearxngJson,
+    accumulate: true,
+  };
 }
 
 export const SEARCH_SOURCES: SearchSource[] = [

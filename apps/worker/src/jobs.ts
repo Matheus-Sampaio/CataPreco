@@ -20,6 +20,7 @@ import {
   classifyProduct,
   filterMatchingHits,
   looksLikeBotWall,
+  makeSearxngSource,
   queryLadder,
   scrapeProduct,
   SEARCH_SOURCES,
@@ -411,7 +412,12 @@ export async function jobSearch(
   const ladder = queryLadder(title);
   log(`query ladder: ${ladder.map((q) => `"${q}"`).join(" → ")}`);
 
-  for (const source of SEARCH_SOURCES) {
+  // fontes fixas + SearXNG quando configurado (SEARXNG_URL)
+  const sources = [...SEARCH_SOURCES];
+  const searxngUrl = process.env.SEARXNG_URL?.trim();
+  if (searxngUrl) sources.push(makeSearxngSource(searxngUrl));
+
+  for (const source of sources) {
     try {
       // ladder: tenta queries do mais específico ao mais amplo
       let hits: ReturnType<typeof filterMatchingHits> = [];
