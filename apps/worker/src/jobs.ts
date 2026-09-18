@@ -19,6 +19,7 @@ import {
 import {
   classifyProduct,
   filterMatchingHits,
+  looksLikeBotWall,
   queryLadder,
   scrapeProduct,
   SEARCH_SOURCES,
@@ -296,6 +297,7 @@ export async function jobSearchFlex(deps: JobDeps, product: Product): Promise<vo
   let added = 0;
   for (const source of SEARCH_SOURCES.slice(0, 1)) { // ML por ora (mais tolerante)
     try {
+      await deps.acquire?.(source.buildUrl(query));
       const res = await deps.fetch.get(source.buildUrl(query.replace(/\s+/g, "-")));
       if (res.status !== 200) continue;
       const hits = filterMatchingHits(query, source.parse(res.html), 0.5);
@@ -417,10 +419,15 @@ export async function jobSearch(
         // fontes web: junta os 2 primeiros degraus (cobertura vale mais que precisão)
         const raw: Parameters<typeof filterMatchingHits>[1] = [];
         for (const [level, q] of ladder.slice(0, 2).entries()) {
+          await deps.acquire?.(source.buildUrl(q));
           const res = await deps.fetch.get(source.buildUrl(q));
           if (res.status !== 200) {
             log(`search ${source.id} L${level}: HTTP ${res.status}`);
             continue;
+          }
+          if (looksLikeBotWall(res.html)) {
+            log(`search ${source.id} L${level}: bot wall — pulando fonte (não é "0 matches")`);
+            break;
           }
           raw.push(...source.parse(res.html));
         }
@@ -428,10 +435,15 @@ export async function jobSearch(
         hits = filterMatchingHits(title, uniq);
       } else {
         for (const [level, q] of ladder.entries()) {
+          await deps.acquire?.(source.buildUrl(q));
           const res = await deps.fetch.get(source.buildUrl(q));
           if (res.status !== 200) {
             log(`search ${source.id} L${level}: HTTP ${res.status}`);
             continue;
+          }
+          if (looksLikeBotWall(res.html)) {
+            log(`search ${source.id}: bot wall na página de BUSCA — interrompendo fonte (evita martelar o domínio)`);
+            break;
           }
           hits = filterMatchingHits(title, source.parse(res.html));
           if (hits.length > 0) break;

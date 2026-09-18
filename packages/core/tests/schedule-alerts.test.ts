@@ -27,6 +27,17 @@ describe("alerts", () => {
     expect(backInStock("unknown", "in_stock")).toBe(true);
   });
 
+  it("sem threshold configurado: queda precisa de 1% mínimo (anti-ruído)", () => {
+    expect(isPriceDrop(10000, 9900)).toBe(true); // -1% exato
+    expect(isPriceDrop(10000, 9950)).toBe(false); // -0,5% = ruído
+    expect(isPriceDrop(152010, 152000)).toBe(false); // R$ 1.520,10 → R$ 1.520,00
+  });
+
+  it("evaluateTransition: primeira leitura (prev null) não dispara back_in_stock", () => {
+    const events = evaluateTransition(null, 50000, "unknown", "in_stock", null);
+    expect(events.map((e) => e.kind)).not.toContain("back_in_stock");
+  });
+
   it("evaluateTransition combines events", () => {
     const events = evaluateTransition(10000, 8500, "out_of_stock", "in_stock", 9000, { absCents: 1 });
     const kinds = events.map((e) => e.kind);

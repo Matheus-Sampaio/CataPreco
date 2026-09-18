@@ -207,7 +207,7 @@ async function tick(): Promise<void> {
   for (const product of extracting) {
     await acquireDomain(product.url);
     try {
-      await jobExtract({ db: prisma, fetch: fetchPort, ai: null, aiForUser, searchFetch, log: LOG }, product);
+      await jobExtract({ db: prisma, fetch: fetchPort, ai: null, aiForUser, searchFetch, log: LOG, acquire: acquireDomain }, product);
       markRequest(product.url, false);
     } catch (err) {
       markRequest(product.url, true);
@@ -219,11 +219,11 @@ async function tick(): Promise<void> {
   const searching = await prisma.product.findMany({ where: { status: "searching" }, take: 2 });
   for (const product of searching) {
     try {
-      await jobSearch({ db: prisma, fetch: fetchPort, ai: null, aiForUser, searchFetch, log: LOG }, product);
+      await jobSearch({ db: prisma, fetch: fetchPort, ai: null, aiForUser, searchFetch, log: LOG, acquire: acquireDomain }, product);
       // após a busca exata, classifica o produto (uma vez, com IA)
       const fresh = await prisma.product.findUnique({ where: { id: product.id } });
       if (fresh) {
-        await jobClassify({ db: prisma, fetch: fetchPort, ai: null, aiForUser, searchFetch, log: LOG }, fresh);
+        await jobClassify({ db: prisma, fetch: fetchPort, ai: null, aiForUser, searchFetch, log: LOG, acquire: acquireDomain }, fresh);
       }
     } catch (err) {
       LOG(`jobSearch error: ${(err as Error).message}`);
@@ -246,10 +246,10 @@ async function tick(): Promise<void> {
   });
   for (const product of pendingSearch) {
     try {
-      await jobSearch({ db: prisma, fetch: fetchPort, ai: null, aiForUser, searchFetch, log: LOG }, product, { keepPending: true });
+      await jobSearch({ db: prisma, fetch: fetchPort, ai: null, aiForUser, searchFetch, log: LOG, acquire: acquireDomain }, product, { keepPending: true });
       const fresh = await prisma.product.findUnique({ where: { id: product.id } });
       if (fresh) {
-        await jobClassify({ db: prisma, fetch: fetchPort, ai: null, aiForUser, searchFetch, log: LOG }, fresh);
+        await jobClassify({ db: prisma, fetch: fetchPort, ai: null, aiForUser, searchFetch, log: LOG, acquire: acquireDomain }, fresh);
       }
     } catch (err) {
       LOG(`pending review search error: ${(err as Error).message}`);
@@ -272,7 +272,7 @@ async function tick(): Promise<void> {
     await acquireDomain(product.url);
     try {
       LOG(`re-tentando extração de pending_review ${product.id}`);
-      await jobExtract({ db: prisma, fetch: fetchPort, ai: null, aiForUser, searchFetch, log: LOG }, product);
+      await jobExtract({ db: prisma, fetch: fetchPort, ai: null, aiForUser, searchFetch, log: LOG, acquire: acquireDomain }, product);
       markRequest(product.url, false);
     } catch (err) {
       markRequest(product.url, true);
@@ -292,7 +292,7 @@ async function tick(): Promise<void> {
   });
   for (const product of unclassified) {
     try {
-      await jobClassify({ db: prisma, fetch: fetchPort, ai: null, aiForUser, searchFetch, log: LOG }, product);
+      await jobClassify({ db: prisma, fetch: fetchPort, ai: null, aiForUser, searchFetch, log: LOG, acquire: acquireDomain }, product);
     } catch (err) {
       LOG(`backfill classify error: ${(err as Error).message}`);
     }
@@ -313,7 +313,7 @@ async function tick(): Promise<void> {
   });
   for (const product of flexDue) {
     try {
-      await jobSearchFlex({ db: prisma, fetch: fetchPort, ai: null, aiForUser, searchFetch, log: LOG }, product);
+      await jobSearchFlex({ db: prisma, fetch: fetchPort, ai: null, aiForUser, searchFetch, log: LOG, acquire: acquireDomain }, product);
       await prisma.product.update({ where: { id: product.id }, data: { lastFlexSearchAt: new Date() } });
     } catch (err) {
       LOG(`jobSearchFlex error: ${(err as Error).message}`);

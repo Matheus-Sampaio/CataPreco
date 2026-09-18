@@ -9,7 +9,7 @@
 [![Prisma](https://img.shields.io/badge/Prisma-16-2D3748?logo=prisma&logoColor=white)](https://www.prisma.io/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-182%20passing-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-184%20passing-brightgreen)]()
 
 </div>
 

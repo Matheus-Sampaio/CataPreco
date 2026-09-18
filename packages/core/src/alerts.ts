@@ -26,7 +26,8 @@ export function isPriceDrop(
   }
   if (threshold.absCents) return diff >= threshold.absCents;
   if (threshold.pct) return (diff / prevCents) * 100 >= threshold.pct;
-  return true; // no threshold configured: any drop notifies
+  // sem threshold configurado: piso anti-ruído de 1% (quedas de centavos não valem notificação)
+  return (diff / prevCents) * 100 >= 1;
 }
 
 /** True the first time price is at or below target. */
