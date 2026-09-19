@@ -66,6 +66,15 @@ export interface SpecMatchResult {
   reasons: string[];
 }
 
+/** True when the listing title contains any negative spec — vale pra busca exata E flex. */
+export function hasNegativeSpec(listingTitle: string, negativeSpecs: SpecTokens): boolean {
+  const normTitle = fuseUnits(norm(listingTitle));
+  return negativeSpecs.some((n) => {
+    const nn = fuseUnits(norm(n));
+    return nn.length >= 2 && normTitle.includes(nn);
+  });
+}
+
 /**
  * Matches a listing title against the commodity spec.
  * - every spec token must appear in the normalized listing title
@@ -82,9 +91,11 @@ export function specMatch(
   const reasons: string[] = [];
   const listingNorm = fuseUnits(norm(listingTitle));
   const normalizedSpecs = specs.map((s) => fuseUnits(norm(s))).filter((s) => s.length >= 2);
-  const negatives = negativeSpecs.map((s) => fuseUnits(norm(s))).filter((s) => s.length >= 2);
 
-  const blocked = negatives.find((n) => listingNorm.includes(n));
+  const blocked = negativeSpecs
+    .map((s) => fuseUnits(norm(s)))
+    .filter((s) => s.length >= 2)
+    .find((n) => listingNorm.includes(n));
   if (blocked) {
     return { score: 0, ok: false, reasons: [`spec excluída presente: ${blocked}`] };
   }

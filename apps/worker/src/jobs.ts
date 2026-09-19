@@ -29,7 +29,7 @@ import {
   type FetchPort,
   type PipelineResult,
 } from "@catapreco/scraper";
-import { specMatch } from "@catapreco/core";
+import { specMatch, hasNegativeSpec } from "@catapreco/core";
 import { dispatchEvent } from "./runtime/notifier";
 import { getUsdBrl } from "./runtime/fx";
 
@@ -75,12 +75,19 @@ async function persistCheck(
 /** Recompute denormalized aggregates on the product from its listings. */
 async function refreshProductAggregates(db: PrismaClient, productId: string) {
   // isAlternative (outra marca) NÃO entra no preço do produto — poluiria o
-  // min e quebraria a referência do alerta "alternativa mais barata"
+  // min e quebraria a referência do alerta "alternativa mais barata".
+  // Listings que batem numa spec NEGATIVA também não (ex.: A1 mini quando o
+  // usuário só quer a A1).
+  const prod = await db.product.findUniqueOrThrow({ where: { id: productId } });
+  const negatives = (prod.negativeSpecs as string[] | null) ?? [];
   const listings = await db.listing.findMany({
     where: { productId, isAlternative: false, OR: [{ priceBrlCents: { not: null } }, { priceCents: { not: null } }] },
-    select: { priceCents: true, priceBrlCents: true },
+    select: { title: true, priceCents: true, priceBrlCents: true },
   });
-  const prices = listings.map((l) => l.priceBrlCents ?? (l.priceCents as number));
+  const eligible = negatives.length
+    ? listings.filter((l) => !l.title || !hasNegativeSpec(l.title, negatives))
+    : listings;
+  const prices = eligible.map((l) => l.priceBrlCents ?? (l.priceCents as number));
   if (prices.length === 0) {
     // sem preço em nenhuma listing → limpa agregados stale (ex.: DJI Osmo com min fantasma)
     await db.product.update({
@@ -400,6 +407,9 @@ export async function jobSearch(
   }
   log(`search cross-marketplace for "${title}"`);
 
+  // specs negativas valem TAMBÉM pra busca exata: "-mini" remove A1 Mini da A1
+  const negatives = (product.negativeSpecs as string[] | null) ?? [];
+
   // canonical urls already tracked for this product (dedup)
   const existingListings = await db.listing.findMany({
     where: { productId: product.id },
@@ -463,6 +473,10 @@ export async function jobSearch(
       let added = 0;
       for (const hit of hits.slice(0, source.accumulate ? 5 : 3)) {
         if (existingNormal.has(normalizeProductUrl(hit.url))) continue;
+        if (negatives.length && hasNegativeSpec(hit.title, negatives)) {
+          log(`search ${source.id}: rejeitado por spec negativa — "${hit.title.slice(0, 50)}"`);
+          continue;
+        }
         const saved = await db.listing.upsert({
           where: { productId_url: { productId: product.id, url: hit.url } },
           create: {

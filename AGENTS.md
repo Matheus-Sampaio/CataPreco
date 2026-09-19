@@ -29,9 +29,10 @@
 - `decide()`: candidato único vindo só de CSS genérico exige conf ≥ 0.6 (fontes estruturadas: conf/2).
 
 ## Specs flex (brand-flexible)
-- `specMatch(title, specs, threshold, negativeSpecs)`: negativeSpecs rejeitam o anúncio se presentes no título ("notebook" em busca de RAM desktop). UI: no campo "+ spec", digitar `-termo` cria spec negativa.
+- `specMatch(title, specs, threshold, negativeSpecs)`: negativeSpecs rejeitam o anúncio se presentes no título. UI: no campo "+ spec", digitar `-termo` cria spec negativa.
+- `hasNegativeSpec(title, negatives)` vale TAMBÉM pra busca exata e pro agregado de preço: listing com termo negativo não entra mais nem no menor preço (ex.: "-mini" numa Bambu A1 ignora a A1 Mini).
 - Flex tem guarda de categoria: o 1º token do título do produto precisa existir no anúncio (evita "sanduicheira 750w" casar com "liquidificador 750w").
-- `refreshProductAggregates` ignora listings `isAlternative` — o preço do produto é só o dele; alternativas viram linha própria no gráfico de histórico (altSeries).
+- `refreshProductAggregates` ignora listings `isAlternative` e com spec negativa — o preço do produto reflete só o que o usuário quer; alternativas viram linha própria no gráfico (altSeries).
 - Editar specs/flexBrands via PATCH zera `lastFlexSearchAt` → flex re-roda no próximo tick.
 
 ## Busca cross-marketplace

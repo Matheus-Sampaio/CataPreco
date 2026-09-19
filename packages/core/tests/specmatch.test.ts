@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { specMatch, looksCommodityCategory } from "../src/specmatch";
+import { specMatch, hasNegativeSpec, looksCommodityCategory } from "../src/specmatch";
 
 const SSD_SPECS = ["1tb", "m2", "nvme", "gen4"];
 
@@ -90,6 +90,20 @@ describe("specMatch", () => {
   it("spec negativa é normalizada (acento/caixa/unidade com espaço)", () => {
     const r = specMatch("Memória 16 GB DDR4 p/ notebook", ["16gb", "ddr4"], 0.75, ["Notebook"]);
     expect(r.ok).toBe(false);
+  });
+});
+
+describe("hasNegativeSpec", () => {
+  it("detecta termo excluído no título", () => {
+    expect(hasNegativeSpec("Impressora 3D Bambu Lab A1 Mini Combo", ["mini"])).toBe(true);
+    expect(hasNegativeSpec("Impressora 3D Bambu Lab A1 Combo", ["mini"])).toBe(false);
+    expect(hasNegativeSpec("Memória SODIMM p/ Notebook", ["notebook", "sodimm"])).toBe(true);
+  });
+
+  it("normaliza caixa/acentos/unidades com espaço", () => {
+    expect(hasNegativeSpec("Monitor 27 Pol QHD", ["27pol"])).toBe(true);
+    expect(hasNegativeSpec("Furadeira sem Fio", ["sem fio"])).toBe(true);
+    expect(hasNegativeSpec("Celular LAVANDA 512gb", ["Lavanda"])).toBe(true);
   });
 });
 

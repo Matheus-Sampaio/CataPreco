@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { ExternalLink, RefreshCw } from "lucide-react";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { formatBRL } from "@catapreco/core";
+import { formatBRL, hasNegativeSpec } from "@catapreco/core";
 import { toast } from "sonner";
 import { Badge, Button, Input, Modal, Price, SkeletonRows, StockBadge } from "@/components/ui";
 import type { UiListing } from "@/components/types";
@@ -86,7 +86,7 @@ export function ProductModal({ product, onClose }: { product: UiProduct; onClose
             <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">Este produto</p>
           )}
           {offers.filter((l) => !l.isAlternative).map((l) => (
-            <OfferRow key={l.id} l={l} />
+            <OfferRow key={l.id} l={l} negatives={product.negativeSpecs ?? []} />
           ))}
 
           {offers.some((l) => l.isAlternative) && (
@@ -95,7 +95,7 @@ export function ProductModal({ product, onClose }: { product: UiProduct; onClose
             </p>
           )}
           {offers.filter((l) => l.isAlternative).map((l) => (
-            <OfferRow key={l.id} l={l} alternative />
+            <OfferRow key={l.id} l={l} alternative negatives={product.negativeSpecs ?? []} />
           ))}
         </div>
       )}
@@ -389,7 +389,8 @@ function AlertConfig({ product }: { product: UiProduct & { dropAbsCents?: number
 }
 
 /** One offer row (extracted so we can render groups separated by alternative status). */
-function OfferRow({ l, alternative = false }: { l: UiListing; alternative?: boolean }) {
+function OfferRow({ l, alternative = false, negatives = [] }: { l: UiListing; alternative?: boolean; negatives?: string[] }) {
+  const negHit = negatives.length > 0 && l.title ? hasNegativeSpec(l.title, negatives) : false;
   return (
     <div className="flex items-center justify-between gap-3 rounded-lg border border-[var(--border)] p-3">
       <div className="min-w-0">
@@ -402,6 +403,14 @@ function OfferRow({ l, alternative = false }: { l: UiListing; alternative?: bool
             </span>
           )}
           {l.isAlternative && <Badge tone="warn">spec</Badge>}
+          {negHit && (
+            <span
+              className="rounded-full bg-red-500/15 text-red-600 dark:text-red-400 px-2 py-0.5 text-xs font-medium"
+              title="Bate numa spec negativa — fora do menor preço; seria filtrada em novas buscas"
+            >
+              excluída (−spec)
+            </span>
+          )}
           {l.imported === true && l.taxIncluded === true && (
             <span className="rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 text-xs font-medium">
               importado · imposto incluído
