@@ -32,13 +32,18 @@ export const amazon: SiteAdapter = {
     pushOffscreen("#priceblock_dealprice", 0.78, "amazon dealprice");
     pushOffscreen(".basisPrice .a-offscreen", 0.4, "lista (riscado)");
 
-    // Whole/fraction split fallback ("1.234" + "56")
+    // Whole/fraction split fallback — RESTRITO ao buybox (a página tem
+    // carrossel de variantes/acessórios com preços parecidos na mesma classe)
     if (candidates.length === 0) {
-      const whole = $(".a-price .a-price-whole").first().text().trim();
-      const frac = $(".a-price .a-price-fraction").first().text().trim();
+      const scope = $(
+        "#corePrice_feature_div, #corePriceDisplay_desktop_feature_div, #apex_desktop, #buybox, #ppd",
+      ).first();
+      const whole = scope.find(".a-price .a-price-whole").first().text().trim()
+        || scope.find(".a-price-whole").first().text().trim();
+      const frac = scope.find(".a-price .a-price-fraction").first().text().trim();
       if (whole) {
         const v = parsePrice(`${whole}${frac}`);
-        if (v) candidates.push({ valueCents: v, source: "adapter", confidence: 1 * 0.7, label: "amazon whole+fraction" });
+        if (v) candidates.push({ valueCents: v, source: "adapter", confidence: 1 * 0.7, label: "amazon whole+fraction (buybox)" });
       }
     }
 

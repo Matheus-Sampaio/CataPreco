@@ -549,6 +549,13 @@ export async function jobCheck(deps: JobDeps, product: Product & { listings: Lis
     await persistCheck(db, listing.id, result, startedAt);
     if (!result.ok || !result.selected) continue;
 
+    // leitura ambígua (extractores discordaram) NÃO entra no histórico —
+    // guarda o preço anterior até a próxima checagem com sinal claro
+    if (result.needsReview) {
+      log(`listing ${listing.id}: leitura ambígua (${result.selected.valueCents} entre ${result.candidates.length} candidatos) — mantendo preço anterior`);
+      continue;
+    }
+
     const price = result.selected.valueCents; // native currency
     const stock = result.stock;
 

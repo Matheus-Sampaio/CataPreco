@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@catapreco/db";
+import { hasNegativeSpec } from "@catapreco/core";
 import { getSessionUser } from "@/lib/auth";
 
 /** Price history: per-listing points + min-price series (own product vs alternatives). */
@@ -11,7 +12,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const product = await prisma.product.findFirst({
     where: { id, userId: user.id },
     include: {
-      listings: { select: { id: true, marketplace: true, priceCents: true, isAlternative: true } },
+      listings: { select: { id: true, marketplace: true, title: true, priceCents: true, isAlternative: true } },
     },
   });
   if (!product) return NextResponse.json({ error: "não encontrado" }, { status: 404 });
@@ -22,9 +23,19 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     orderBy: { ts: "asc" },
   });
 
+  const negatives = (product.negativeSpecs as string[] | null) ?? [];
+  const byId = new Map(product.listings.map((l) => [l.id, l] as const));
+  // listings descartadas visualmente: spec negativa detectada no título
+  // (mesma regra do agregado — pontos históricos delas não afetam o gráfico)
+  const barred = (listingId: string): boolean => {
+    const l = byId.get(listingId);
+    return !!l?.title && negatives.length > 0 && hasNegativeSpec(l.title, negatives);
+  };
+  const clean = points.filter((p) => !barred(p.listingId));
+
   const altIds = new Set(product.listings.filter((l) => l.isAlternative).map((l) => l.id));
-  const ownPoints = points.filter((p) => !altIds.has(p.listingId));
-  const altPoints = points.filter((p) => altIds.has(p.listingId));
+  const ownPoints = clean.filter((p) => !altIds.has(p.listingId));
+  const altPoints = clean.filter((p) => altIds.has(p.listingId));
 
   // Running-min series: own product listings and other-brand alternatives apart.
   function runningMin(ps: typeof points) {
